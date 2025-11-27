@@ -2,13 +2,7 @@
 A fully agentic Hybrid Planning system using LLM reasoning + heuristic guardrails + adaptive Python plans + memory-aware decision making. Includes conservative strategy execution, tool sandboxing, historical conversation indexing, and introspection-driven multi-step planning. Built for EAG Session 9.
 
 
-Nice, now we can start doing real work.
-
-I’ll do **Step 1 (architecture explanation + diagram)** and **Step 2 (identify & fix the error)** in one go so you can plug this straight into your README.
-
----
-
-## ✅ Step 1 – Architecture explanation (drop-in for README)
+## Architecture explanation 
 
 You can put this under something like:
 
@@ -60,55 +54,8 @@ flowchart TD
     Main --> User
 
 ```
-You hit the classic **GitHub Mermaid parser restrictions**:
 
-### ❌ GitHub Mermaid does *not* allow:
-
-* Parentheses `(` `)`
-* Slashes `/`
-* Hyphens in node IDs
-* `<br/>` inside labels
-* Multiple words with spaces unless wrapped correctly
-
-That’s why your diagram fails.
-
----
-
-# ✅ Here is a **fully GitHub-safe, guaranteed-rendering Mermaid diagram**
-
-No parentheses, no slashes, no emojis, no HTML breaks.
-
-**Use THIS exact diagram:**
-
-```mermaid
-flowchart TD
-    User --> Main
-
-    Main --> Config
-    Main --> Context
-    Main --> MultiMCP
-    Main --> Loop
-
-    Context --> Memory
-
-    subgraph AgentStep
-        Loop --> Perception
-        Perception --> MultiMCP
-        MultiMCP --> Loop
-
-        Loop --> Decision
-        Decision --> Sandbox
-
-        Sandbox --> MultiMCP
-        Sandbox --> Loop
-        Loop --> Memory
-    end
-
-    Loop --> Main
-    Main --> User
-```
-
-# 🔍 What each node stands for 
+### 🔍 What each node stands for 
 
 | Node           | Meaning                                                     |
 | -------------- | ----------------------------------------------------------- |
