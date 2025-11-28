@@ -284,6 +284,6 @@ Using the `log10` MCP tool on this value yields a base 10 logarithm of **8.63286
 
 ---
 
-# ✅ Status
+### ✅ Status
 
 The Hybrid Agent Planner now behaves reliably, respects the step budget, understands forwarded context, uses tools correctly, and produces deterministic final answers.
