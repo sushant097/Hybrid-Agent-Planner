@@ -1,0 +1,8 @@
+.DS_Store
+.env
+documents/
+faiss_index/
+memory/
+uv.lock
+__pycache__/
+*.pyc
