@@ -319,16 +319,20 @@ If a monetary amount is given in words, first extract that number then convert c
 Answer obtained on given new `decision_prompt_conservative.txt`. Full log is in [`questions_answers_log2.txt`](questions_answers_log2.txt):
 
 1. What do you know about Don Tapscott and Anthony Williams?
+
 Don Tapscott and Anthony Williams have argued for the use of open source strategies in respect of clean technologies. In their 2010 book MacroWikinomics, they called for the establishment of a green technology commons.
 
 2. What is the relationship between Gensol and Go-Auto?
+
 Gensol transferred funds to Go-Auto, an auto dealership, to purchase electric vehicles for BluSmart.
 
 3. What is the log value of the amount that Anmol singh paid for his DLF apartment via Capbridge? 
 The log value of the amount Anmol Singh paid is 8.63286204010023
 
 4. How much Anmol singh paid for his DLF apartment via Capbridge? 
+
 Anmol Singh paid ₹42.94 crore for his DLF apartment via Capbridge.
 
 5. Summarize this page: https://theschoolof.ai/
+
 TSAI offers courses on AI/ML, focusing on practical implementation and advanced concepts. Key courses include ERA (training LLMs), EAG (Agentic AI), and EPAi (Python for AI). The courses cover a wide range of topics from foundational concepts to advanced techniques like multi-agent systems, reinforcement learning, and MLOps. Registrations for some courses are scheduled for April 2026. The program emphasizes hands-on learning and preparing students for leadership in AI development.
