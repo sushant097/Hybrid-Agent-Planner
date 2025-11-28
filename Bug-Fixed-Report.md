@@ -201,7 +201,7 @@ Added new example how to use math tools via MCP and some tips:
 ```text
 
 ✅ Example 6: Compute a log value from a known amount inside documents
-```python
+
 async def solve():
     # FUNCTION_CALL: 1
     """Compute the base-10 logarithm of a number. Usage: input={{"input": {{"a": 100}}}} result = await mcp.call_tool('log10', input)"""
@@ -209,7 +209,6 @@ async def solve():
     result = await mcp.call_tool('log10', input)
     return f"FINAL_ANSWER: The base-10 logarithm is {{result}}"
 
-```
 
 
 If a monetary amount is given in words (e.g. "Rs. 42.94 Crore"), first extract that number from documents.
