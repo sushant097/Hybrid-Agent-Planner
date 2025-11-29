@@ -1,6 +1,9 @@
 # modules/loop.py
 
 import asyncio
+import re
+from typing import Optional
+
 from core import context
 from modules.perception import run_perception
 from modules.decision import generate_plan
@@ -10,21 +13,71 @@ from core.session import MultiMCP
 from core.strategy import select_decision_prompt_path
 from core.context import AgentContext
 from modules.tools import summarize_tools
-import re
+
+from modules.historical_index import (
+    update_index_for_session,
+    load_similar_examples,
+)
 
 try:
     from agent import log
 except ImportError:
     import datetime
+
     def log(stage: str, msg: str):
         now = datetime.datetime.now().strftime("%H:%M:%S")
         print(f"[{now}] [{stage}] {msg}")
+
+
+def maybe_answer_from_history(user_input: str) -> Optional[str]:
+    """
+    Try to directly reuse a prior FINAL_ANSWER from historical_conversation_store.json
+    if we clearly answered this same question before.
+
+    Strategy:
+    - Use load_similar_examples() to get top_k candidates by keyword overlap.
+    - Then do a strict, case-insensitive string match on user_query.
+    - Only return if we have a FINAL_ANSWER: ... string.
+    """
+    if not user_input:
+        return None
+
+    examples = load_similar_examples(user_input, top_k=3)
+    if not examples:
+        return None
+
+    normalized_query = user_input.strip().lower()
+
+    for ex in examples:
+        ex_query = (ex.get("user_query") or "").strip().lower()
+        final_answer = ex.get("final_answer") or ""
+
+        if (
+            ex_query == normalized_query
+            and isinstance(final_answer, str)
+            and final_answer.startswith("FINAL_ANSWER:")
+        ):
+            return final_answer
+
+    return None
+
 
 class AgentLoop:
     def __init__(self, context: AgentContext):
         self.context = context
         self.mcp = self.context.dispatcher
         self.model = ModelManager()
+
+    def _update_historical_index(self):
+        """
+        Incrementally update historical_conversation_store.json
+        for the current session.
+        """
+        try:
+            mm = self.context.memory  # MemoryManager
+            update_index_for_session(mm.memory_path, mm.session_id)
+        except Exception as e:
+            log("history", f"⚠️ Failed to update historical index: {e}")
 
     async def _finalize_from_content(self, original_question: str, tool_result: str) -> str:
         """
@@ -79,7 +132,7 @@ Important:
 - Your final output must be ONLY the answer text, no bullet points, no explanation
   of your steps.
 
-Now, provide your final answer.
+Now, provide your final answer. If long answer multi-paragraph, summarize in one sentence.
 """
 
         try:
@@ -89,8 +142,23 @@ Now, provide your final answer.
             log("loop", f"⚠️ Finalization failed: {e}")
             # Fallback: at least return some of the raw tool_result
             return tool_result[:2000]
-        
+
     async def run(self):
+        # 0) Try to answer purely from historical memory before doing ANY work
+        original_query = self.context.user_input or ""
+        memory_hit = maybe_answer_from_history(original_query)
+        if memory_hit:
+            log("loop", "✅ Historical memory hit — returning cached FINAL_ANSWER.")
+            self.context.final_answer = memory_hit
+
+            # Log into current session memory so this turn is still represented
+            self.context.memory.add_final_answer(self.context.final_answer)
+            # Update global historical index with this session's data
+            self._update_historical_index()
+
+            return {"status": "done", "result": self.context.final_answer}
+
+        # 1) Normal multi-step loop (your existing behavior)
         max_steps = self.context.agent_profile.strategy.max_steps
         allowed_fpr_uses = max_steps - 1  # e.g., 2 when max_steps = 3
         # track how many times we've used FURTHER_PROCESSING_REQUIRED
@@ -104,7 +172,10 @@ Now, provide your final answer.
             while lifelines_left >= 0:
                 # === Perception ===
                 user_input_override = getattr(self.context, "user_input_override", None)
-                perception = await run_perception(context=self.context, user_input=user_input_override or self.context.user_input)
+                perception = await run_perception(
+                    context=self.context,
+                    user_input=user_input_override or self.context.user_input,
+                )
 
                 print(f"[perception] {perception}")
 
@@ -113,9 +184,9 @@ Now, provide your final answer.
                 if not selected_tools:
                     log("loop", "⚠️ No tools selected — aborting step.")
                     break
-                
+
                 effective_user_input = user_input_override or self.context.user_input
-                
+
                 # === Planning ===
                 tool_descriptions = summarize_tools(selected_tools)
                 prompt_path = select_decision_prompt_path(
@@ -135,6 +206,23 @@ Now, provide your final answer.
                 print(f"[plan] {plan}")
 
                 # === Execution ===
+                # 0) Direct FINAL_ANSWER / FURTHER_PROCESSING from planner (no sandbox)
+                if isinstance(plan, str) and (
+                    plan.startswith("FINAL_ANSWER:")
+                    or plan.startswith("FURTHER_PROCESSING_REQUIRED:")
+                ):
+                    log("loop", "✅ Planner returned direct answer, skipping sandbox.")
+                    self.context.final_answer = plan
+
+                    # ✅ Persist to this session's memory log
+                    self.context.memory.add_final_answer(self.context.final_answer)
+
+                    # ✅ Update global historical index (historical_conversation_store.json)
+                    self._update_historical_index()
+
+                    return {"status": "done", "result": self.context.final_answer}
+
+                # 1) Normal case: LLM returned a solve() function (code plan)
                 if re.search(r"^\s*(async\s+)?def\s+solve\s*\(", plan, re.MULTILINE):
                     print("[loop] Detected solve() plan — running sandboxed...")
 
@@ -155,8 +243,12 @@ Now, provide your final answer.
                                 success=True,
                                 tags=["sandbox"],
                             )
+
+                            # NEW: store final answer + update global history
+                            self.context.memory.add_final_answer(self.context.final_answer)
+                            self._update_historical_index()
+
                             return {"status": "done", "result": self.context.final_answer}
-                        
 
                         elif result.startswith("FURTHER_PROCESSING_REQUIRED:"):
                             content = result.split("FURTHER_PROCESSING_REQUIRED:")[1].strip()
@@ -172,22 +264,34 @@ Now, provide your final answer.
                                     f"FINAL_ANSWER: your answer\n\n"
                                     f"Otherwise, return the next FUNCTION_CALL."
                                 )
-                                log("loop", f"📨 Forwarding intermediate result to next step:\n{self.context.user_input_override}\n\n")
-                                log("loop", f"🔁 Continuing based on FURTHER_PROCESSING_REQUIRED — Step {step+1} continues...")
+                                log(
+                                    "loop",
+                                    f"📨 Forwarding intermediate result to next step:\n{self.context.user_input_override}\n\n",
+                                )
+                                log(
+                                    "loop",
+                                    f"🔁 Continuing based on FURTHER_PROCESSING_REQUIRED — Step {step+1} continues...",
+                                )
                                 break  # go to next step
 
                             else:
                                 # ❌ We've exceeded the allowed FPR uses, must finalize now
-                                log("loop", "⚠️ FURTHER_PROCESSING_REQUIRED exceeded budget — forcing FINAL_ANSWER via summarization.")
+                                log(
+                                    "loop",
+                                    "⚠️ FURTHER_PROCESSING_REQUIRED exceeded budget — forcing FINAL_ANSWER via summarization.",
+                                )
                                 final_answer = await self._finalize_from_content(
                                     original_question=self.context.user_input,
                                     tool_result=content,
                                 )
                                 self.context.final_answer = f"FINAL_ANSWER: {final_answer}"
                                 self.context.memory.add_final_answer(self.context.final_answer)
-                                return {"status": "done", "result": self.context.final_answer}
-
-
+                                # NEW: update global history when forced finalizing
+                                self._update_historical_index()
+                                return {
+                                    "status": "done",
+                                    "result": self.context.final_answer,
+                                }
 
                         elif result.startswith("[sandbox error:"):
                             success = False
@@ -212,16 +316,24 @@ Now, provide your final answer.
                     )
 
                     if success and "FURTHER_PROCESSING_REQUIRED:" not in result:
+                        # NEW: ensure final answer is recorded and indexed
+                        self.context.memory.add_final_answer(self.context.final_answer)
+                        self._update_historical_index()
                         return {"status": "done", "result": self.context.final_answer}
                     else:
                         lifelines_left -= 1
                         log("loop", f"🛠 Retrying... Lifelines left: {lifelines_left}")
                         continue
                 else:
-                    log("loop", f"⚠️ Invalid plan detected — retrying... Lifelines left: {lifelines_left-1}")
+                    log(
+                        "loop",
+                        f"⚠️ Invalid plan detected — retrying... Lifelines left: {lifelines_left-1}",
+                    )
                     lifelines_left -= 1
                     continue
 
         log("loop", "⚠️ Max steps reached without finding final answer.")
         self.context.final_answer = "FINAL_ANSWER: [Max steps reached]"
+        self.context.memory.add_final_answer(self.context.final_answer)
+        self._update_historical_index()
         return {"status": "done", "result": self.context.final_answer}
