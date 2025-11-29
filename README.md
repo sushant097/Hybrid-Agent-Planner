@@ -327,6 +327,7 @@ Don Tapscott and Anthony Williams have argued for the use of open source strateg
 Gensol transferred funds to Go-Auto, an auto dealership, to purchase electric vehicles for BluSmart.
 
 3. What is the log value of the amount that Anmol singh paid for his DLF apartment via Capbridge? 
+
 The log value of the amount Anmol Singh paid is 8.63286204010023
 
 4. How much Anmol singh paid for his DLF apartment via Capbridge? 
