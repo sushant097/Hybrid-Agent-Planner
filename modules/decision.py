@@ -34,14 +34,14 @@ async def generate_plan(
     memory_texts = "\n".join(f"- {m.text}" for m in memory_items) or "None"
 
     # 1) Try direct reuse from historical memory
-    examples = load_similar_examples(user_input, top_k=3)
+    examples = load_similar_examples(user_input)
 
     if examples:
         lines = []
         for ex in examples:
             fa = ex.get("final_answer") or ""
-            if len(fa) > 200:
-                fa = fa[:200] + "... [truncated]"
+            if len(fa) > 500:
+                fa = fa[:500] + "... [truncated]"
             lines.append(
                 f"- Past query: {ex['user_query']}\n"
                 f"  Tools: {', '.join(ex['tools_used'])}\n"
@@ -56,9 +56,11 @@ async def generate_plan(
     # Format kwargs guarded by placeholder checks
     format_kwargs = {
         "tool_descriptions": tool_descriptions,
-        "user_input": user_input,
-        "memory_texts": memory_texts,
+        "user_input": user_input
     }
+    if "{memory_texts}" in prompt_template:
+        format_kwargs["memory_texts"] = memory_texts
+
     if "{historical_examples}" in prompt_template:
         format_kwargs["historical_examples"] = historical_examples
 
@@ -71,22 +73,44 @@ async def generate_plan(
         raw = (await model.generate_text(prompt)).strip()
         log("plan", f"LLM output: {raw}")
 
-        # If fenced in ```python ... ```, extract
+        # If wrapped in ```...``` strip fences first
         if raw.startswith("```"):
+            # remove leading and trailing backticks
             raw = raw.strip("`").strip()
+            # optional "python" language tag
             if raw.lower().startswith("python"):
                 raw = raw[len("python"):].strip()
 
-        # accept direct FINAL_ANSWER from planner
-        if raw.startswith("FINAL_ANSWER:"):
-            log("plan", "✅ Direct answer from planner, no solve() needed.")
-            return raw
+        # ----------------------------------------------------
+        # 1) If there is a direct FINAL_ANSWER or FURTHER_...
+        #    anywhere in the output AND there is NO solve(),
+        #    treat that as the planner giving us a direct answer.
+        # ----------------------------------------------------
+        has_solve = bool(re.search(r"^\s*(async\s+)?def\s+solve\s*\(", raw, re.MULTILINE))
 
-        if re.search(r"^\s*(async\s+)?def\s+solve\s*\(", raw, re.MULTILINE):
-            return raw  # correct, it is a full function
-        else:
-            log("plan", "⚠️ LLM did not return a valid solve(). Defaulting to FINAL_ANSWER")
-            return "FINAL_ANSWER: [Could not generate valid solve()]"
+        direct_final = re.search(r"^\s*(FINAL_ANSWER:.*)$", raw, re.MULTILINE)
+        if direct_final and not has_solve:
+            answer = direct_final.group(1).strip()
+            log("plan", f"Using direct FINAL_ANSWER from planner: {answer}")
+            return answer
+
+        direct_fpr = re.search(r"^\s*(FURTHER_PROCESSING_REQUIRED:.*)$", raw, re.MULTILINE)
+        if direct_fpr and not has_solve:
+            answer = direct_fpr.group(1).strip()
+            log("plan", f"Using direct FURTHER_PROCESSING_REQUIRED from planner: {answer}")
+            return answer
+
+        # ----------------------------------------------------
+        # 2) Otherwise, expect a proper async def solve(...)
+        # ----------------------------------------------------
+        if has_solve:
+            return raw  # valid plan code
+
+        # ----------------------------------------------------
+        # 3) Fallback: neither solve() nor a clean direct answer
+        # ----------------------------------------------------
+        log("plan", "⚠️ LLM did not return solve() or a clean FINAL_ANSWER/FURTHER_PROCESSING_REQUIRED. Defaulting to fallback.")
+        return "FINAL_ANSWER: [Could not generate valid solve()]"
 
     except Exception as e:
         log("plan", f"⚠️ Planning failed: {e}")
