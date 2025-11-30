@@ -337,3 +337,337 @@ Anmol Singh paid ₹42.94 crore for his DLF apartment via Capbridge.
 5. Summarize this page: https://theschoolof.ai/
 
 TSAI offers courses on AI/ML, focusing on practical implementation and advanced concepts. Key courses include ERA (training LLMs), EAG (Agentic AI), and EPAi (Python for AI). The courses cover a wide range of topics from foundational concepts to advanced techniques like multi-agent systems, reinforcement learning, and MLOps. Registrations for some courses are scheduled for April 2026. The program emphasizes hands-on learning and preparing students for leadership in AI development.
+
+
+
+````markdown
+# 🧠 Historical Memory + Semantic Cache: How It Works
+
+> “I implemented a semantic query cache on top of my historical conversation index. Each past query is stored with normalized keywords. For any new user query, I compute a Jaccard similarity over keyword sets against all previous queries. If any match exceeds a threshold (for example 0.90), I immediately return the stored `FINAL_ANSWER` from memory and completely bypass the perception–planning–action loop. In addition, I inject the top-k similar examples into the planner prompt, so the LLM can reuse prior `FINAL_ANSWER`s even when the similarity is slightly below the hard threshold.
+
+This section explains how the agent:
+
+1. **Indexes past conversations** into a global memory file.  
+2. **Finds semantically similar queries** using Jaccard similarity over keywords.  
+3. **Directly returns a cached `FINAL_ANSWER`** when the new query is “close enough.”  
+4. **Injects similar examples into the planner prompt** so the LLM can reuse answers without re-planning.
+
+---
+
+## 1. Data store: `historical_conversation_store.json`
+
+All historical Q&A pairs are stored in:
+
+```text
+memory/historical_conversation_store.json
+````
+
+Each entry looks like this:
+
+```json
+{
+  "session_id": "2025/11/28/session-1764386898-6bd8e8",
+  "turn_index": 0,
+  "user_query": "How much Anmol singh paid for his DLF apartment via Capbridge?",
+  "final_answer": "FINAL_ANSWER: A key transaction flagged by SEBI involved DLF...",
+  "tools_used": ["solve_sandbox"],
+  "successful_tools": ["solve_sandbox"],
+  "tags": ["run_start", "sandbox"],
+  "keywords": ["anmol", "singh", "paid", "dlf", "apartment", "capbridge"]
+}
+```
+
+Important:
+
+* Only **successful runs** with a clean `FINAL_ANSWER:` are indexed.
+* Junk answers like `FINAL_ANSWER: [Could not generate valid solve()]` are **ignored**.
+* `keywords` are the tokenized, de-stopworded version of the query.
+  Example:
+  `"How much Anmol singh paid for his DLF apartment via Capbridge?"` →
+  `["how", "much", "anmol", "singh", "paid", "dlf", "apartment", "capbridge"]`
+  After stopword removal it might become: `["anmol", "singh", "paid", "dlf", "apartment", "capbridge"]`.
+
+---
+
+## 2. Indexing: `update_index_for_session(...)`
+
+Every time a run finishes, `loop.py` calls:
+
+```python
+update_index_for_session(mm.memory_path, mm.session_id)
+```
+
+This function:
+
+1. Reads the **per session memory JSON** (from `MemoryManager`).
+
+2. Walks through events to find:
+
+   * a `run_metadata` entry with
+     `"Started new session with input: ..."` → this gives the `user_query`
+   * the following `tool_output` entries that contain a `FINAL_ANSWER: ...`.
+
+3. Builds a `HistoricalExample`:
+
+   ```python
+   HistoricalExample(
+       session_id=session_id,
+       turn_index=turn_index,
+       user_query=user_query,
+       final_answer=final_answer,
+       tools_used=...,
+       successful_tools=...,
+       tags=...,
+       keywords=_normalize_text(user_query),
+   )
+   ```
+
+4. Appends this to `historical_conversation_store.json`, deduped by `(session_id, turn_index)`.
+
+So the memory file is gradually filled with **real successful Q&A pairs** across sessions.
+
+---
+
+## 3. Keyword extraction and normalization
+
+Function used: `_normalize_text(text: str) -> List[str>`
+
+Algorithm:
+
+1. Lowercase the text.
+2. Extract `[a-z0-9]+` tokens using regex.
+3. Remove English stopwords like `"the", "is", "a", "how", "what", "much", "when", "where"...`.
+
+Example:
+
+```text
+Input: "relationship between Gensol and Go-Auto?"
+Tokens: ["relationship", "between", "gensol", "and", "go", "auto"]
+After stopword removal: ["relationship", "gensol", "go", "auto"]
+```
+
+These keyword lists are stored with each historical example and used to compute similarity.
+
+---
+
+## 4. Similarity metric: Jaccard over keywords
+
+Similarity is computed with `_jaccard_similarity(a, b)`:
+
+```python
+sa = set(a)
+sb = set(b)
+similarity = len(sa ∩ sb) / len(sa ∪ sb)
+```
+
+Intuition:
+
+* If two queries share many important words and have similar sets of keywords, the Jaccard score is high (close to 1.0).
+* If they share very few or no keywords, the score is low.
+
+Example:
+
+```text
+Q1 keywords: ["anmol", "singh", "paid", "dlf", "apartment", "capbridge"]
+Q2 keywords: ["how", "much", "anmol", "singh", "paid", "dlf", "apartment", "capbridge"]
+          → after stopword removal, Q2 keywords ≈ Q1 keywords
+
+Set1 = {"anmol", "singh", "paid", "dlf", "apartment", "capbridge"}
+Set2 = {"anmol", "singh", "paid", "dlf", "apartment", "capbridge"}
+
+Intersection = 6, Union = 6
+Jaccard = 6 / 6 = 1.00
+```
+
+So variations like:
+
+* `"How much Anmol singh paid for his DLF apartment via Capbridge?"`
+* `"How much Anmol Singh paid for DLF apartment via Capbridge"`
+
+will get **very high similarity**, even if punctuation or small words differ.
+
+---
+
+## 5. Semantic cache API: `find_best_cached_answer(...)`
+
+This is the main entry point for cache hits:
+
+```python
+def find_best_cached_answer(
+    user_query: str,
+    min_similarity: float = 0.90,
+    memory_root: Optional[str] = None,
+) -> Optional[str]:
+    ...
+```
+
+Algorithm:
+
+1. Load all historical items from `historical_conversation_store.json`.
+2. Compute `q_keywords = _normalize_text(user_query)`.
+3. For each item:
+
+   * Skip if `final_answer` is invalid or “junk.”
+   * Get its `keywords` (or recompute from `user_query` if missing).
+   * Compute `sim = jaccard(q_keywords, keywords)`.
+4. Track the **best match** `(best_sim, best_answer, best_query)`.
+5. If `best_sim >= min_similarity`:
+
+   * Log:
+     `✅ Semantic cache hit for 'X' -> 'Y' (sim=0.95)`
+   * Return `best_answer` (which starts with `FINAL_ANSWER:`).
+6. Otherwise return `None`.
+
+So the cache is **semantic** but still uses a simple, deterministic similarity measure that is cheap and fast.
+
+---
+
+## 6. Using the cache in the loop: bypassing the whole agent
+
+At the very top of `AgentLoop.run()` in `loop.py`:
+
+```python
+original_query = self.context.user_input or ""
+semantic_hit = find_best_cached_answer(original_query, min_similarity=0.90)
+
+if semantic_hit:
+    log("loop", "⚡ Semantic memory hit — returning cached FINAL_ANSWER.")
+    self.context.final_answer = semantic_hit.strip()
+    self.context.memory.add_final_answer(self.context.final_answer)
+    self._update_historical_index()
+    return {"status": "done", "result": self.context.final_answer}
+```
+
+Effect:
+
+* If a **similar question** has already been answered, the agent:
+
+  * **Skips perception**
+  * **Skips planning**
+  * **Skips all tool calls and sandbox execution**
+* It simply returns the previous `FINAL_ANSWER:` from memory.
+
+For example: Queries below matched with similarity 0.86 and the cached answer is returned instantly.:
+
+* `relationship between Gensol and Go-Auto?`
+* `What is the relationship between Gensol and Go-Auto?`
+
+Once one of them is answered, the other one hits the cache and returns instantly.
+
+---
+
+## 7. Injecting historical examples into the planner prompt
+
+Besides the hard cache logic, the planner is also given “soft” historical context.
+
+In `decision.py`, when building the planner prompt, we:
+
+1. Call:
+
+   ```python
+   similar_examples = load_similar_examples(user_query, top_k=3)
+   ```
+
+   which returns a short list of high similarity past queries.
+
+2. Format them in the prompt as:
+
+   ```text
+   Past similar interactions:
+   - Past query: What is the relationship between Gensol and Go-Auto?
+     Tools: solve_sandbox
+     Outcome: FINAL_ANSWER: Gensol transferred funds to Go-Auto, ...
+   - Past query: relationship between Don Tapscott and Anthony Williams?
+     Tools: solve_sandbox
+     Outcome: FINAL_ANSWER: Don Tapscott and Anthony Williams are the authors of ...
+   ```
+
+3. Add a **very explicit instruction**:
+
+   ```text
+   ---
+   IF the 'User query' is a CLOSE PARAPHRASE of any 'Past query'
+   AND the 'Outcome' contains a `FINAL_ANSWER:`:
+   * ACTION: STOP NOW. Do NOT write any Python code (`async def solve`).
+   * OUTPUT: RESPOND ONLY with the exact `FINAL_ANSWER: ...` text from the 'Outcome'.
+   ---
+   OTHERWISE, PROCEED TO PLANNING RULES:
+   ```
+
+This makes the LLM planner “aware” of similar past answers. Even if the semantic cache did not trigger (for example, similarity is high but below threshold), the LLM still sees those examples and is strongly nudged to **reuse the existing `FINAL_ANSWER`** instead of planning a new tool call.
+
+---
+
+## 8. End-to-end flow example
+
+### First time question
+
+User:
+`How much Anmol singh paid for his DLF apartment via Capbridge?`
+
+1. Cache lookup:
+
+   * `find_best_cached_answer` returns `None` (first time, no history).
+
+2. Normal loop:
+
+   * Perception: selects web/doc tools.
+   * Planner: creates a `solve()` with tool calls.
+   * Action: runs tools, parses SEBI PDF, etc.
+   * Final answer:
+
+     ```text
+     FINAL_ANSWER: A key transaction flagged by SEBI involved DLF...
+     ```
+
+3. Indexing:
+
+   * `update_index_for_session` writes this query + answer into `historical_conversation_store.json`.
+
+### Slightly different wording later
+
+User:
+`How much Anmol Singh paid for DLF apartment via Capbridge`
+
+1. Cache lookup:
+
+   * `_normalize_text` makes both queries almost identical keyword sets.
+   * Jaccard similarity ~ 1.0.
+   * `best_sim >= 0.90` so cache hit.
+2. The loop returns instantly:
+
+   ```text
+   ⚡ Semantic memory hit — returning cached FINAL_ANSWER.
+   ```
+
+   And the user immediately gets the same `FINAL_ANSWER` without any extra tool calls or planning.
+
+---
+
+## 9. Why this is “smart” indexing?
+
+* It is **global** across sessions (`historical_conversation_store.json`).
+* It is **selective**:
+
+  * Only successful `FINAL_ANSWER`s are stored.
+  * Junk / error answers are skipped.
+* It is **semantic**:
+
+  * Uses Jaccard over cleaned keywords to tolerate small variations.
+* It is **integrated in two ways**:
+
+  1. **Hard semantic cache** in `loop.py`:
+
+     * Short-circuits the entire agent pipeline and returns cached results.
+  2. **Soft prompt memory** in `decision.py`:
+
+     * Passes “Past similar interactions” into the planner with an explicit rule:
+       If close paraphrase → reuse `FINAL_ANSWER` directly.
+
+This combination gives multiple benefits:
+
+* Speed: repeated or paraphrased queries are answered instantly.
+* Stability: the user gets consistent answers across sessions.
+* Lower cost: fewer tool calls and LLM planning steps for repeated questions.
+
+
