@@ -29,6 +29,12 @@ persona:
   verbosity: low
   behavior_tags: [rational, focused, tool-using]
 
+custom_config:
+  jaccard_similarity_threshold: 0.80
+  verbose_logging: true
+  memory_index_file: "memory/historical_conversation_store.json"
+  top_k_similar_examples: 3
+
 mcp_servers:
   - id: math
     script: mcp_server_1.py
