@@ -79,3 +79,4 @@ if __name__ == "__main__":
 # which course are we teaching on Canvas LMS? "H:\DownloadsH\How to use Canvas LMS.pdf"
 # Summarize this page: https://theschoolof.ai/
 # What is the log value of the amount that Anmol singh paid for his DLF apartment via Capbridge? 
+

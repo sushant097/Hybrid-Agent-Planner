@@ -2,7 +2,7 @@
 .env
 documents/
 faiss_index/
-memory/
+memory/2025/*
 uv.lock
 __pycache__/
 *.pyc

@@ -197,6 +197,7 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
 
                 selected_servers = perception.selected_servers
                 selected_tools = self.mcp.get_tools_from_servers(selected_servers)
+
                 # Check if we are currently in a content summarization step (Step 2/3)
                 # This is true if user_input_override is set (i.e., we have content to process).
                 is_summarizing = bool(getattr(self.context, "user_input_override", None))
@@ -205,6 +206,7 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
                 if not selected_tools and not is_summarizing:
                     log("loop", "⚠️ No tools selected — aborting step.")
                     break
+
 
                 effective_user_input = user_input_override or self.context.user_input
 
