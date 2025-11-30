@@ -339,9 +339,7 @@ Anmol Singh paid ₹42.94 crore for his DLF apartment via Capbridge.
 TSAI offers courses on AI/ML, focusing on practical implementation and advanced concepts. Key courses include ERA (training LLMs), EAG (Agentic AI), and EPAi (Python for AI). The courses cover a wide range of topics from foundational concepts to advanced techniques like multi-agent systems, reinforcement learning, and MLOps. Registrations for some courses are scheduled for April 2026. The program emphasizes hands-on learning and preparing students for leadership in AI development.
 
 
-
-````markdown
-# 🧠 Historical Memory + Semantic Cache: How It Works
+## 🧠 Historical Memory + Semantic Cache: How It Works
 
 > “I implemented a semantic query cache on top of my historical conversation index. Each past query is stored with normalized keywords. For any new user query, I compute a Jaccard similarity over keyword sets against all previous queries. If any match exceeds a threshold (for example 0.90), I immediately return the stored `FINAL_ANSWER` from memory and completely bypass the perception–planning–action loop. In addition, I inject the top-k similar examples into the planner prompt, so the LLM can reuse prior `FINAL_ANSWER`s even when the similarity is slightly below the hard threshold.
 

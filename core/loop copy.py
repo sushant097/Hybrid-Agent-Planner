@@ -2,7 +2,6 @@
 
 import asyncio
 import re
-from pathlib import Path
 from typing import Optional
 
 from core import context
@@ -17,6 +16,7 @@ from modules.tools import summarize_tools
 
 from modules.historical_index import (
     update_index_for_session,
+    load_similar_examples,
     find_best_cached_answer,
 )
 
@@ -30,7 +30,7 @@ except ImportError:
         print(f"[{now}] [{stage}] {msg}")
 
 
-# 🔧 Global verbose toggle (will be set from profiles.yaml at runtime)
+# 🔧 Toggle this to control how noisy the logs are
 VERBOSE_LOG = False
 
 
@@ -45,41 +45,6 @@ class AgentLoop:
         self.context = context
         self.mcp = self.context.dispatcher
         self.model = ModelManager()
-
-        # ---- Read custom config from profiles.yaml (with safe defaults) ----
-        cfg = getattr(self.context.agent_profile, "custom_config", None)
-
-        self.verbose_logging = False
-        self.jaccard_similarity_threshold = 0.80
-        self.memory_index_file = "memory/historical_conversation_store.json"
-
-        if cfg is not None:
-            # profiles.yaml:
-            # custom_config:
-            #   jaccard_similarity_threshold: 0.85
-            #   verbose_logging: true
-            #   memory_index_file: "memory/historical_conversation_store.json"
-            self.verbose_logging = getattr(cfg, "verbose_logging", False)
-            self.jaccard_similarity_threshold = getattr(
-                cfg, "jaccard_similarity_threshold", 0.85
-            )
-            self.memory_index_file = getattr(
-                cfg, "memory_index_file", "memory/historical_conversation_store.json"
-            )
-
-        # Derive memory_root from memory_index_file path
-        # e.g., "memory/historical_conversation_store.json" -> "memory"
-        self.memory_root = str(Path(self.memory_index_file).parent)
-
-        # set global verbose log flag
-        global VERBOSE_LOG
-        VERBOSE_LOG = bool(self.verbose_logging)
-        # verbose log initial settings
-        vlog(
-            "initial params",
-            f"Initialized with jaccard_similarity_threshold={self.jaccard_similarity_threshold}, "
-            f"memory_index_file={self.memory_index_file}"
-        )
 
     def _update_historical_index(self):
         """
@@ -146,22 +111,10 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
 
     async def run(self):
         # ---------------------------------------------------------
-        # Sync global VERBOSE_LOG with profiles.yaml
-        # ---------------------------------------------------------
-        global VERBOSE_LOG
-        VERBOSE_LOG = bool(self.verbose_logging)
-
-        # ---------------------------------------------------------
         # 0) Try SEMANTIC CACHE first (no perception, no tools)
         # ---------------------------------------------------------
         original_query = self.context.user_input or ""
-
-        # Use threshold + memory_root from profiles.yaml
-        semantic_hit = find_best_cached_answer(
-            user_query=original_query,
-            min_similarity=self.jaccard_similarity_threshold,
-            memory_root=self.memory_root,
-        )
+        semantic_hit = find_best_cached_answer(original_query, min_similarity=0.80)
 
         if semantic_hit:
             log("loop", "⚡ Semantic memory hit — returning cached FINAL_ANSWER.")
@@ -172,9 +125,7 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
             self._update_historical_index()
             return {"status": "done", "result": self.context.final_answer}
 
-        # ---------------------------------------------------------
         # 1) Normal multi-step loop
-        # ---------------------------------------------------------
 
         max_steps = self.context.agent_profile.strategy.max_steps
         allowed_fpr_uses = max_steps - 1  # e.g., 2 when max_steps = 3
@@ -197,12 +148,7 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
 
                 selected_servers = perception.selected_servers
                 selected_tools = self.mcp.get_tools_from_servers(selected_servers)
-                # Check if we are currently in a content summarization step (Step 2/3)
-                # This is true if user_input_override is set (i.e., we have content to process).
-                is_summarizing = bool(getattr(self.context, "user_input_override", None))
-
-                # FIX: Only abort if we are NOT summarizing AND no tools were selected.
-                if not selected_tools and not is_summarizing:
+                if not selected_tools:
                     log("loop", "⚠️ No tools selected — aborting step.")
                     break
 
@@ -280,7 +226,7 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
                                 )
                                 vlog(
                                     "loop",
-                                    "📨 Forwarding intermediate result to next step.",
+                                    f"📨 Forwarding intermediate result to next step.",
                                 )
                                 vlog(
                                     "loop",
