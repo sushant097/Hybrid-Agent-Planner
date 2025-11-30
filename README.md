@@ -341,7 +341,7 @@ TSAI offers courses on AI/ML, focusing on practical implementation and advanced 
 
 ## 🧠 Historical Memory + Semantic Cache: How It Works
 
-> “I implemented a semantic query cache on top of my historical conversation index. Each past query is stored with normalized keywords. For any new user query, I compute a Jaccard similarity over keyword sets against all previous queries. If any match exceeds a threshold (for example 0.90), I immediately return the stored `FINAL_ANSWER` from memory and completely bypass the perception–planning–action loop. In addition, I inject the top-k similar examples into the planner prompt, so the LLM can reuse prior `FINAL_ANSWER`s even when the similarity is slightly below the hard threshold.
+I implemented a semantic query cache on top of my historical conversation index. Each past query is stored with normalized keywords. For any new user query, I compute a Jaccard similarity over keyword sets against all previous queries. If any match exceeds a threshold (for example 0.90), I immediately return the stored `FINAL_ANSWER` from memory and completely bypass the perception–planning–action loop. In addition, I inject the top-k similar examples into the planner prompt, so the LLM can reuse prior `FINAL_ANSWER`s even when the similarity is slightly below the hard threshold.
 
 This section explains how the agent:
 
