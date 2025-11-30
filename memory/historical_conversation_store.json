@@ -25,60 +25,6 @@
   },
   {
     "session_id": "2025/11/29/session-1764480010-899f80",
-    "turn_index": 1,
-    "user_query": "How much Anmol singh paid for his DLF apartment via Capbridge?",
-    "final_answer": "FINAL_ANSWER: Capbridge paid Rs. 42.94 Crore to DLF as part of the consideration for an apartment booked by Jasminder Kaur, Anmol Singh Jaggi's mother. Funds availed by Gensol as loans for procuring EVs were, through layered transactions, partly utilized for buying a high-end apartment in The Camellias, DLF Gurgoan, in the name of a firm where the MD of Gensol and his brother are designated partners.",
-    "tools_used": [],
-    "successful_tools": [],
-    "tags": [],
-    "keywords": [
-      "anmol",
-      "singh",
-      "paid",
-      "dlf",
-      "apartment",
-      "via",
-      "capbridge"
-    ]
-  },
-  {
-    "session_id": "2025/11/29/session-1764480010-899f80",
-    "turn_index": 2,
-    "user_query": "How much Anmol singh paid for DLF apartment via Capbridge",
-    "final_answer": "FINAL_ANSWER: Capbridge paid Rs. 42.94 Crore to DLF as part of the consideration for an apartment booked by Jasminder Kaur, Anmol Singh Jaggi's mother. Funds availed by Gensol as loans for procuring EVs were, through layered transactions, partly utilized for buying a high-end apartment in The Camellias, DLF Gurgoan, in the name of a firm where the MD of Gensol and his brother are designated partners.",
-    "tools_used": [],
-    "successful_tools": [],
-    "tags": [],
-    "keywords": [
-      "anmol",
-      "singh",
-      "paid",
-      "dlf",
-      "apartment",
-      "via",
-      "capbridge"
-    ]
-  },
-  {
-    "session_id": "2025/11/29/session-1764480010-899f80",
-    "turn_index": 3,
-    "user_query": "How much Anmol singh paid DLF apartment via Capbridge",
-    "final_answer": "FINAL_ANSWER: Capbridge paid Rs. 42.94 Crore to DLF as part of the consideration for an apartment booked by Jasminder Kaur, Anmol Singh Jaggi's mother. Funds availed by Gensol as loans for procuring EVs were, through layered transactions, partly utilized for buying a high-end apartment in The Camellias, DLF Gurgoan, in the name of a firm where the MD of Gensol and his brother are designated partners.",
-    "tools_used": [],
-    "successful_tools": [],
-    "tags": [],
-    "keywords": [
-      "anmol",
-      "singh",
-      "paid",
-      "dlf",
-      "apartment",
-      "via",
-      "capbridge"
-    ]
-  },
-  {
-    "session_id": "2025/11/29/session-1764480010-899f80",
     "turn_index": 4,
     "user_query": "What do you know about Don Tapscott and Anthony Williams?",
     "final_answer": "FINAL_ANSWER: Don Tapscott and Anthony Williams have argued for the use of open source strategies for clean technologies, advocating for a green technology commons in their 2010 book *MacroWikinomics*.",
