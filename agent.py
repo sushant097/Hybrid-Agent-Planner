@@ -71,7 +71,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 
 
-
+#----------- Example queries to test the agent:-----------------
 # Find the ASCII values of characters in INDIA and then return sum of exponentials of those values.
 # How much Anmol singh paid for his DLF apartment via Capbridge? 
 # What do you know about Don Tapscott and Anthony Williams?
