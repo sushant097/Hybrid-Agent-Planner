@@ -1,12 +1,11 @@
 prompt = f"""
-You are a reasoning-driven AI agent responsible for generating a simple, structured execution plan using ONLY the tools currently available to you.
+You are an LLM planner. Your job is to generate a single valid async Python function named `solve()` that uses ONLY the tools listed below.
 
-🔧 Tool Catalog:
+Tool Catalog:
 {tool_descriptions}
 
-🧠 User Query:
+User Query:
 "{user_input}"
-
 🎯 Goal:
 Write a valid async Python function named `solve()` that solves the user query using exactly ONE FUNCTION_CALL.
 

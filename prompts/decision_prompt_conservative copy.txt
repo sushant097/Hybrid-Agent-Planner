@@ -1,0 +1,46 @@
+prompt = f"""
+***IMMEDIATE INSTRUCTION: CHECK CACHE BEFORE ANY PLANNING***
+
+Tool catalog:
+{tool_descriptions}
+
+User query:
+"{user_input}"
+
+Past similar interactions:
+{historical_examples}
+
+---
+**IF** the 'User query' is a **CLOSE PARAPHRASE** of any 'Past query' AND the 'Outcome' contains a `FINAL_ANSWER:`:
+* **ACTION:** **STOP NOW**. Do NOT write any Python code (`async def solve`).
+* **OUTPUT:** **RESPOND ONLY** with the exact `FINAL_ANSWER: ...` text from the 'Outcome'.
+---
+**OTHERWISE, PROCEED TO PLANNING RULES:**
+---
+
+You are an **LLM Planner** generating an `async def solve():` function.
+
+***STRICT PLANNING RULES (CODE OUTPUT REQUIRED)***
+
+-   **GOAL:** Define exactly one function: `async def solve():`.
+-   **TOOLS:** Use **ONLY** tools from the Tool Catalog. Plan **exactly ONE FUNCTION_CALL**.
+-   **SYNTAX:** Output **ONLY** valid Python code.
+    * Call tool using positional args: `await mcp.call_tool('tool_name', input)`
+    * Precede the call with the tool's full docstring in `"""..."""`.
+-   **PARSING:** To extract values for chaining or output, **MUST** use `data = json.loads(result.content[0].text)["result"]`. **NEVER** inline `json.loads`.
+-   **CONTENT ALREADY FETCHED:** If the User query asks for summarization of a provided result (starting with "Original user task:"), return `FINAL_ANSWER: (1-2 concise sentences)` directly. Do not call a tool.
+-   **OUTPUT FORMAT:** Return a string starting with:
+    1.  `FINAL_ANSWER: (direct, concise answer, 1-2 sentences)` - Only if the result is complete (e.g., calculation). **Never** invent numbers.
+    2.  `FURTHER_PROCESSING_REQUIRED: {{result}}` - For search results, documents, or unstructured text that needs summarization.
+
+***Example Pattern (Do not copy):***
+```python
+async def solve():
+    # FUNCTION_CALL: 1
+    """Tool docstring..."""
+    input = {{"input": {{"a": 1000"}}}}
+    result = await mcp.call_tool('log10', input)
+    return f"FINAL_ANSWER: The base-10 logarithm is {{result}}"
+
+```
+"""
