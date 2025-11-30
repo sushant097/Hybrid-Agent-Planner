@@ -96,5 +96,54 @@
       "theschoolof",
       "ai"
     ]
+  },
+  {
+    "session_id": "2025/11/29/session-1764482083-7df026",
+    "turn_index": 0,
+    "user_query": "Who is current prime minister of USA?",
+    "final_answer": "FINAL_ANSWER: The United States does not have a Prime Minister; the President combines the roles of head of state and head of government.",
+    "tools_used": [],
+    "successful_tools": [],
+    "tags": [],
+    "keywords": [
+      "current",
+      "prime",
+      "minister",
+      "usa"
+    ]
+  },
+  {
+    "session_id": "2025/11/29/session-1764482083-7df026",
+    "turn_index": 1,
+    "user_query": "What is the cube of 5 ?",
+    "final_answer": "FINAL_ANSWER: The cube of 5 is 125.",
+    "tools_used": [
+      "solve_sandbox"
+    ],
+    "successful_tools": [
+      "solve_sandbox"
+    ],
+    "tags": [
+      "sandbox"
+    ],
+    "keywords": [
+      "cube",
+      "5"
+    ]
+  },
+  {
+    "session_id": "2025/11/29/session-1764482083-7df026",
+    "turn_index": 2,
+    "user_query": "Describe in brief about cricket game?",
+    "final_answer": "FINAL_ANSWER: Cricket is a bat-and-ball game played between two teams of eleven players, where the batting team scores runs by hitting a bowled ball and exchanging places, while the fielding team tries to dismiss batters and prevent runs. Cricket has different formats, ranging from Test matches to Twenty20, and is governed by the International Cricket Council (ICC).",
+    "tools_used": [],
+    "successful_tools": [],
+    "tags": [],
+    "keywords": [
+      "describe",
+      "brief",
+      "cricket",
+      "game"
+    ]
   }
 ]
