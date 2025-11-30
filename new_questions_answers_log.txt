@@ -1,0 +1,445 @@
+uv run agent
+error: Failed to spawn: `agent`
+  Caused by: No such file or directory (os error 2)
+(s9) (base) sushantgautam@Sushants-MacBook-Air Hybrid-Agent-Planner % uv run agent.py
+🧠 Cortex-R Agent Ready
+in MultiMCP initialize
+→ Scanning tools from: mcp_server_1.py in .
+Connection established, creating session...
+[agent] Session created, initializing...
+[agent] MCP session initialized
+[11/29/25 21:54:03] INFO     Processing request of type ListToolsRequest                                                          server.py:534
+→ Tools received: ['add', 'subtract', 'multiply', 'divide', 'power', 'cbrt', 'factorial', 'remainder', 'sin', 'cos', 'tan', 'log10', 'mine', 'create_thumbnail', 'strings_to_chars_to_int', 'int_list_to_exponential_sum', 'fibonacci_numbers']
+→ Scanning tools from: mcp_server_2.py in .
+Connection established, creating session...
+[agent] Session created, initializing...
+/Users/sushantgautam/LearningCourse/TSAI-EAGV2/Session9/GithubUpload/Hybrid-Agent-Planner/.venv/lib/python3.13/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+[agent] MCP session initialized
+[11/29/25 21:54:03] INFO     Processing request of type ListToolsRequest                                                          server.py:534
+→ Tools received: ['search_stored_documents', 'convert_webpage_url_into_markdown', 'extract_pdf']
+→ Scanning tools from: mcp_server_3.py in .
+Connection established, creating session...
+[agent] Session created, initializing...
+[agent] MCP session initialized
+[11/29/25 21:54:04] INFO     Processing request of type ListToolsRequest                                                          server.py:534
+→ Tools received: ['duckduckgo_search_results', 'download_raw_html_from_url']
+🧑 What do you want to solve today? → Who is current prime minister of USA? 
+[21:54:44] [perception] Raw output: ```json
+{
+  "intent": "Find the current prime minister of USA",
+  "entities": ["prime minister", "USA"],
+  "tool_hint": "websearch",
+  "selected_servers": ["websearch"]
+}
+```
+result {'intent': 'Find the current prime minister of USA', 'entities': ['prime minister', 'USA'], 'tool_hint': 'websearch', 'selected_servers': ['websearch']}
+[21:54:44] [plan] Prompt snippet: prompt = f"""
+***LLM PLANNER: CODE GENERATOR***
+
+Tool catalog:
+- duckduckgo_search_results: Search DuckDuckGo. Usage: input={"input": {"query": "latest AI developments", "max_results": 5} } result = await mcp.call_tool('duckduckgo_search_results', input)
+- download_raw_html_from_url: Fetch webpage content. Usage: input={"input": {"url": "https://example.com"} } result = await mcp.call_tool('download_raw_html_from_url', input)
+
+User query:
+"Who is current prime minister of USA?"
+
+Past similar interactions:
+None available
+
+---
+**ABSOLUTE PRIORITY: DIRECT ANSWER CHECK**
+
+1.  **CACHE HIT:** If 'User query' is a **CLOSE PARAPHRASE** of any 'Past query' AND the 'Outcome' contains a `FINAL_ANSWER:`: **STOP**. **RESPOND ONLY** with the exact `FINAL_ANSWER: ...` text. Do NOT write code.
+
+2.  **CONTENT SUMMARY:** If 'User query' begins with "Original user task:" (content is pre-fetched): **STOP**. **RESPOND ONLY** with `FINAL_ANSWER: (1-2 concise sentences)` summarizing the content. Do NOT write code.
+
+---
+**IF NO DIRECT ANSWER, WRITE THE `solve()` FUNCTION:**
+
+***STRICT PLANNING RULES (CODE OUTPUT)***
+
+-   **GOAL:** Define exactly one function: `async def solve():`.
+-   **TOOLS:** Plan **exactly ONE FUNCTION_CALL** using **ONLY** tools from the Tool Catalog.
+-   **SYNTAX:** Output **ONLY** valid Python code.
+    * Call tool using positional args: `await mcp.call_tool('tool_name', input)`.
+    * Precede the call with the tool's full docstring in `"""..."""`.
+-   **PARSING:** To extract values, you **MUST** use `data = json.loads(result.content[0].text)["result"]`. **NEVER** inline `json.loads`.
+-   **OUTPUT FORMAT:** Return a string starting with:
+    1.  `FINAL_ANSWER: (direct, concise answer, 1-2 sentences)` - Only for complete answers (e.g., calculation). **Never** invent or approximate numbers.
+    2.  `FURTHER_PROCESSING_REQUIRED: {result}` - For unstructured text (search, documents) requiring summarization.
+
+***Example Pattern (Chained Calculation):***
+```python
+import json
+async def solve():
+    """Convert chars to ASCII values..."""
+    input = {"input": {"string": "INDIA"}}
+    result1 = await mcp.call_tool('strings_to_chars_to_int', input)
+    numbers = json.loads(result1.content[0].text)["result"]
+    
+    """Sum exponentials of int list..."""
+    input = {"input": {"numbers": numbers}}
+    result2 = await mcp.call_tool('int_list_to_exponential_sum', input)
+    return f"FINAL_ANSWER: {json.loads(result2.content[0].text)['result']}"
+
+```
+"""...
+[21:54:45] [plan] LLM output: ```python
+import json
+async def solve():
+    """Search DuckDuckGo."""
+    input = {"input": {"query": "current prime minister of USA", "max_results": 3}}
+    result = await mcp.call_tool('duckduckgo_search_results', input)
+    return f"FURTHER_PROCESSING_REQUIRED: {result}"
+```
+[action] 🔍 Entered run_python_sandbox()
+[11/29/25 21:54:45] INFO     Processing request of type CallToolRequest                                                           server.py:534
+[11/29/25 21:54:46] INFO     HTTP Request: POST https://html.duckduckgo.com/html "HTTP/1.1 200 OK"                              _client.py:1740
+[21:54:47] [perception] Raw output: ```json
+{
+  "intent": "Determine the current head of government of the USA.",
+  "entities": ["current prime minister", "USA"],
+  "tool_hint": "websearch",
+  "selected_servers": ["websearch"]
+}
+```
+result {'intent': 'Determine the current head of government of the USA.', 'entities': ['current prime minister', 'USA'], 'tool_hint': 'websearch', 'selected_servers': ['websearch']}
+[21:54:47] [history] Similar examples for 'Original user task: Who is current prime minister of USA?
+
+Your last tool produced this result:
+
+meta=None content=[TextContent(type='text', text='{"result": "Found 3 search results:\\n\\n1. List of current heads of state and government - Wikipedia\\n   URL: https://en.wikipedia.org/wiki/List_of_current_heads_of_state_and_government\\n   Summary: The list includes the names of recently elected or appointed heads of state and government who will take office on an appointed date, as presidents-elect andprimeministers-designate, and those leading a government-in-exile if internationally recognised.\\n\\n2. Prime Ministers of The United States | Roles, History\\n   URL: https://allworldspresidents.com/country/the-united-states/prime-ministers/\\n   Summary: When the United States was founded, its leaders rejected monarchy and centralized power. They created a system where the President would lead the executive branch independently of the legislature. By combining the roles of head of state and head of government into one elected President, the U.S. Constitution removed the need for aPrimeMinister.\\n\\n3. The White House\\n   URL: https://www.whitehouse.gov/\\n   Summary: President Donald J. Trump and Vice President JD Vance are committed to lowering costs for all Americans, securing our borders, unleashing American energy dominance, restoring peace through ...\\n"}', annotations=None)] isError=False
+
+If this fully answers the task, return:
+FINAL_ANSWER: your answer
+
+Otherwise, return the next FUNCTION_CALL.': "Who are Gensol and Go-Auto?" (sim=0.01), "Summarize this page: https://theschoolof.ai/" (sim=0.01)
+[21:54:47] [plan] Prompt snippet: prompt = f"""
+***LLM PLANNER: CODE GENERATOR***
+
+Tool catalog:
+- duckduckgo_search_results: Search DuckDuckGo. Usage: input={"input": {"query": "latest AI developments", "max_results": 5} } result = await mcp.call_tool('duckduckgo_search_results', input)
+- download_raw_html_from_url: Fetch webpage content. Usage: input={"input": {"url": "https://example.com"} } result = await mcp.call_tool('download_raw_html_from_url', input)
+
+User query:
+"Original user task: Who is current prime minister of USA?
+
+Your last tool produced this result:
+
+meta=None content=[TextContent(type='text', text='{"result": "Found 3 search results:\\n\\n1. List of current heads of state and government - Wikipedia\\n   URL: https://en.wikipedia.org/wiki/List_of_current_heads_of_state_and_government\\n   Summary: The list includes the names of recently elected or appointed heads of state and government who will take office on an appointed date, as presidents-elect andprimeministers-designate, and those leading a government-in-exile if internationally recognised.\\n\\n2. Prime Ministers of The United States | Roles, History\\n   URL: https://allworldspresidents.com/country/the-united-states/prime-ministers/\\n   Summary: When the United States was founded, its leaders rejected monarchy and centralized power. They created a system where the President would lead the executive branch independently of the legislature. By combining the roles of head of state and head of government into one elected President, the U.S. Constitution removed the need for aPrimeMinister.\\n\\n3. The White House\\n   URL: https://www.whitehouse.gov/\\n   Summary: President Donald J. Trump and Vice President JD Vance are committed to lowering costs for all Americans, securing our borders, unleashing American energy dominance, restoring peace through ...\\n"}', annotations=None)] isError=False
+
+If this fully answers the task, return:
+FINAL_ANSWER: your answer
+
+Otherwise, return the next FUNCTION_CALL."
+
+Past similar interactions:
+- Past query: Who are Gensol and Go-Auto?
+  Tools: 
+  Outcome: FINAL_ANSWER: Gensol Engineering Limited (Gensol) appears to be a company that secured funding for electric vehicles (EVs) but is under investigation for potentially misusing those funds, while Go-Auto Private Limited (Go-Auto) is identified as the EV supplier that sold vehicles to Gensol and was involved in fund transfers that are raising concerns.
+- Past query: Summarize this page: https://theschoolof.ai/
+  Tools: solve_sandbox
+...
+[21:54:47] [plan] LLM output: ```python
+import json
+async def solve():
+    """Search DuckDuckGo."""
+    input = {"input": {"query": "current prime minister of USA", "max_results": 5}}
+    result = await mcp.call_tool('duckduckgo_search_results', input)
+    return f"FURTHER_PROCESSING_REQUIRED: {result}"
+```
+[action] 🔍 Entered run_python_sandbox()
+[11/29/25 21:54:48] INFO     Processing request of type CallToolRequest                                                           server.py:534
+                    INFO     HTTP Request: POST https://html.duckduckgo.com/html "HTTP/1.1 200 OK"                              _client.py:1740
+[21:54:49] [perception] Raw output: ```json
+{
+  "intent": "Find the current prime minister of the USA",
+  "entities": ["current prime minister", "USA"],
+  "tool_hint": "websearch",
+  "selected_servers": ["websearch"]
+}
+```
+result {'intent': 'Find the current prime minister of the USA', 'entities': ['current prime minister', 'USA'], 'tool_hint': 'websearch', 'selected_servers': ['websearch']}
+[21:54:49] [history] Similar examples for 'Original user task: Who is current prime minister of USA?
+
+Your last tool produced this result:
+
+meta=None content=[TextContent(type='text', text='{"result": "Found 5 search results:\\n\\n1. List of current heads of state and government - Wikipedia\\n   URL: https://en.wikipedia.org/wiki/List_of_current_heads_of_state_and_government\\n   Summary: The list includes the names of recently elected or appointed heads of state and government who will take office on an appointed date, as presidents-elect andprimeministers-designate, and those leading a government-in-exile if internationally recognised.\\n\\n2. Prime Ministers of The United States | Roles, History\\n   URL: https://allworldspresidents.com/country/the-united-states/prime-ministers/\\n   Summary: When the United States was founded, its leaders rejected monarchy and centralized power. They created a system where the President would lead the executive branch independently of the legislature. By combining the roles of head of state and head of government into one elected President, the U.S. Constitution removed the need for aPrimeMinister.\\n\\n3. The White House\\n   URL: https://www.whitehouse.gov/\\n   Summary: President Donald J. Trump and Vice President JD Vance are committed to lowering costs for all Americans, securing our borders, unleashing American energy dominance, restoring peace through ...\\n\\n4. List of Prime Ministers of the United States\\n   URL: https://aoin.miraheze.org/wiki/List_of_Prime_Ministers_of_the_United_States\\n   Summary: List ofPrimeMinistersofthe United States Add languages Add links Page Discussion\\n\\n5. Presidents, vice presidents, and first ladies - USAGov\\n   URL: https://www.usa.gov/presidents\\n   Summary: Presidents, vice presidents, and first ladies Learn about the duties of president, vice president, and first lady of the United States. Find out how to contact and learn more aboutcurrentand past leaders.\\n"}', annotations=None)] isError=False
+
+If this fully answers the task, return:
+FINAL_ANSWER: your answer
+
+Otherwise, return the next FUNCTION_CALL.': "Summarize this page: https://theschoolof.ai/" (sim=0.01), "Who are Gensol and Go-Auto?" (sim=0.01)
+[21:54:49] [plan] Prompt snippet: prompt = f"""
+***LLM PLANNER: CODE GENERATOR***
+
+Tool catalog:
+- duckduckgo_search_results: Search DuckDuckGo. Usage: input={"input": {"query": "latest AI developments", "max_results": 5} } result = await mcp.call_tool('duckduckgo_search_results', input)
+- download_raw_html_from_url: Fetch webpage content. Usage: input={"input": {"url": "https://example.com"} } result = await mcp.call_tool('download_raw_html_from_url', input)
+
+User query:
+"Original user task: Who is current prime minister of USA?
+
+Your last tool produced this result:
+
+meta=None content=[TextContent(type='text', text='{"result": "Found 5 search results:\\n\\n1. List of current heads of state and government - Wikipedia\\n   URL: https://en.wikipedia.org/wiki/List_of_current_heads_of_state_and_government\\n   Summary: The list includes the names of recently elected or appointed heads of state and government who will take office on an appointed date, as presidents-elect andprimeministers-designate, and those leading a government-in-exile if internationally recognised.\\n\\n2. Prime Ministers of The United States | Roles, History\\n   URL: https://allworldspresidents.com/country/the-united-states/prime-ministers/\\n   Summary: When the United States was founded, its leaders rejected monarchy and centralized power. They created a system where the President would lead the executive branch independently of the legislature. By combining the roles of head of state and head of government into one elected President, the U.S. Constitution removed the need for aPrimeMinister.\\n\\n3. The White House\\n   URL: https://www.whitehouse.gov/\\n   Summary: President Donald J. Trump and Vice President JD Vance are committed to lowering costs for all Americans, securing our borders, unleashing American energy dominance, restoring peace through ...\\n\\n4. List of Prime Ministers of the United States\\n   URL: https://aoin.miraheze.org/wiki/List_of_Prime_Ministers_of_the_United_States\\n   Summary: List ofPrimeMinistersofthe United States Add languages Add links Page Discussion\\n\\n5. Presidents, vice presidents, and first ladies - USAGov\\n   URL: https://www.usa.gov/presidents\\n   Summary: Presidents, vice presidents, and first ladies Learn about the duties of president, vice president, and first lady of the United States. Find out how to contact and learn more aboutcurrentand past leaders.\\n"}', annotations=None)] isError=False
+
+If this fully answers the task, return:
+FINAL_ANSWER: your answer
+
+Otherwise, ...
+[21:54:50] [plan] LLM output: FINAL_ANSWER: The United States does not have a Prime Minister; the President combines the roles of head of state and head of government.
+[21:54:50] [plan] Using direct FINAL_ANSWER from planner: FINAL_ANSWER: The United States does not have a Prime Minister; the President combines the roles of head of state and head of government.
+[21:54:50] [loop] ✅ Planner returned direct answer, skipping sandbox.
+[21:54:50] [history] ✅ Updated historical index for session 2025/11/29/session-1764482083-7df026 (added 1 entries).
+
+💡 Final Answer: The United States does not have a Prime Minister; the President combines the roles of head of state and head of government.
+🧑 What do you want to solve today? → What is the cube of 5 ?
+[21:56:52] [perception] Raw output: ```json
+{
+  "intent": "Calculate the cube of a number.",
+  "entities": ["5", "cube"],
+  "tool_hint": "python sandbox",
+  "selected_servers": ["math"]
+}
+```
+result {'intent': 'Calculate the cube of a number.', 'entities': ['5', 'cube'], 'tool_hint': 'python sandbox', 'selected_servers': ['math']}
+[21:56:52] [plan] Prompt snippet: prompt = f"""
+***LLM PLANNER: CODE GENERATOR***
+
+Tool catalog:
+- add: Add two numbers. Usage: input={"input": {"a": 1, "b": 2}} result = await mcp.call_tool('add', input)
+- subtract: Subtract one number from another. Usage: input={"input": {"a": 10, "b": 3}} result = await mcp.call_tool('subtract', input)
+- multiply: Multiply two integers. Usage: input={"input": {"a": 6, "b": 7}} result = await mcp.call_tool('multiply', input)
+- divide: Divide one number by another. Usage: input={"input": {"a": 20, "b": 4}} result = await mcp.call_tool('divide', input)
+- power: Compute a raised to the power of b. Usage: input={"input": {"a": 2, "b": 10}} result = await mcp.call_tool('power', input)
+- cbrt: Compute the cube root of a number. Usage: input={"input": {"a": 27}} result = await mcp.call_tool('cbrt', input)
+- factorial: Compute the factorial of a number. Usage: input={"input": {"a": 5}} result = await mcp.call_tool('factorial', input)
+- remainder: Compute the remainder of a divided by b. Usage: input={"input": {"a": 17, "b": 4}} result = await mcp.call_tool('remainder', input)
+- sin: Compute sine of an angle in radians. Usage: input={"input": {"a": 1}} result = await mcp.call_tool('sin', input)
+- cos: Compute cosine of an angle in radians. Usage: input={"input": {"a": 1}} result = await mcp.call_tool('cos', input)
+- tan: Compute tangent of an angle in radians. Usage: input={"input": {"a": 1}} result = await mcp.call_tool('tan', input)
+- log10: Compute the base-10 logarithm of a positive number.
+
+Usage: args={"input": {"a": 100}} result = await mcp.call_tool('log10', args)
+
+- mine: Special mining tool. Usage: input={"input": {"a": 5, "b": 2}} result = await mcp.call_tool('mine', input)
+- create_thumbnail: Create a 100x100 thumbnail from image. Usage: input={"input": {"image_path": "example.jpg"}} result = await mcp.call_tool('create_thumbnail', input)
+- strings_to_chars_to_int: Convert characters to ASCII values. Usage: input={"input": {"string": "INDIA"}} result = await mcp.call_tool('strings_to_chars_to_int', input)
+- int_list_to_exponential_sum: Sum exponentials of int list. Usage: input={"input": {"numbers": [65, 66, 67]}} result = await mcp.call_tool('int_list_to_exponential_sum', input)
+- fibonacci_numbers: Generate first n Fibonacci numbers. Usage: input={"input": {"n": 10}} result = await mcp.call_tool('fibonacci_numbers', input)
+
+User query:
+"What is the cube of 5 ?"
+
+Past similar interactions:
+None available
+
+---
+**ABSOLUTE PRIORITY: DIRECT ANSWER CHECK*...
+[21:56:53] [plan] LLM output: ```python
+import json
+async def solve():
+    """Compute a raised to the power of b."""
+    input = {"input": {"a": 5, "b": 3}}
+    result = await mcp.call_tool('power', input)
+    data = json.loads(result.content[0].text)["result"]
+    return f"FINAL_ANSWER: The cube of 5 is {data}."
+```
+[action] 🔍 Entered run_python_sandbox()
+[11/29/25 21:56:53] INFO     Processing request of type CallToolRequest                                                           server.py:534
+[21:56:53] [history] ✅ Updated historical index for session 2025/11/29/session-1764482083-7df026 (added 1 entries).
+
+💡 Final Answer: The cube of 5 is 125.
+🧑 What do you want to solve today? → Describe in brief about cricket game?
+[21:58:43] [perception] Raw output: ```json
+{
+  "intent": "Provide a brief description of cricket.",
+  "entities": ["cricket"],
+  "tool_hint": "websearch",
+  "selected_servers": ["websearch"]
+}
+```
+result {'intent': 'Provide a brief description of cricket.', 'entities': ['cricket'], 'tool_hint': 'websearch', 'selected_servers': ['websearch']}
+[21:58:43] [plan] Prompt snippet: prompt = f"""
+***LLM PLANNER: CODE GENERATOR***
+
+Tool catalog:
+- duckduckgo_search_results: Search DuckDuckGo. Usage: input={"input": {"query": "latest AI developments", "max_results": 5} } result = await mcp.call_tool('duckduckgo_search_results', input)
+- download_raw_html_from_url: Fetch webpage content. Usage: input={"input": {"url": "https://example.com"} } result = await mcp.call_tool('download_raw_html_from_url', input)
+
+User query:
+"Describe in brief about cricket game?"
+
+Past similar interactions:
+None available
+
+---
+**ABSOLUTE PRIORITY: DIRECT ANSWER CHECK**
+
+1.  **CACHE HIT:** If 'User query' is a **CLOSE PARAPHRASE** of any 'Past query' AND the 'Outcome' contains a `FINAL_ANSWER:`: **STOP**. **RESPOND ONLY** with the exact `FINAL_ANSWER: ...` text. Do NOT write code.
+
+2.  **CONTENT SUMMARY:** If 'User query' begins with "Original user task:" (content is pre-fetched): **STOP**. **RESPOND ONLY** with `FINAL_ANSWER: (1-2 concise sentences)` summarizing the content. Do NOT write code.
+
+---
+**IF NO DIRECT ANSWER, WRITE THE `solve()` FUNCTION:**
+
+***STRICT PLANNING RULES (CODE OUTPUT)***
+
+-   **GOAL:** Define exactly one function: `async def solve():`.
+-   **TOOLS:** Plan **exactly ONE FUNCTION_CALL** using **ONLY** tools from the Tool Catalog.
+-   **SYNTAX:** Output **ONLY** valid Python code.
+    * Call tool using positional args: `await mcp.call_tool('tool_name', input)`.
+    * Precede the call with the tool's full docstring in `"""..."""`.
+-   **PARSING:** To extract values, you **MUST** use `data = json.loads(result.content[0].text)["result"]`. **NEVER** inline `json.loads`.
+-   **OUTPUT FORMAT:** Return a string starting with:
+    1.  `FINAL_ANSWER: (direct, concise answer, 1-2 sentences)` - Only for complete answers (e.g., calculation). **Never** invent or approximate numbers.
+    2.  `FURTHER_PROCESSING_REQUIRED: {result}` - For unstructured text (search, documents) requiring summarization.
+
+***Example Pattern (Chained Calculation):***
+```python
+import json
+async def solve():
+    """Convert chars to ASCII values..."""
+    input = {"input": {"string": "INDIA"}}
+    result1 = await mcp.call_tool('strings_to_chars_to_int', input)
+    numbers = json.loads(result1.content[0].text)["result"]
+    
+    """Sum exponentials of int list..."""
+    input = {"input": {"numbers": numbers}}
+    result2 = await mcp.call_tool('int_list_to_exponential_sum', input)
+    return f"FINAL_ANSWER: {json.loads(result2.content[0].text)['result']}"
+
+```
+"""...
+[21:58:44] [plan] LLM output: ```python
+import json
+async def solve():
+    """Search DuckDuckGo."""
+    input = {"input": {"query": "cricket game description", "max_results": 5} }
+    result = await mcp.call_tool('duckduckgo_search_results', input)
+    return f"FURTHER_PROCESSING_REQUIRED: {result}"
+```
+[action] 🔍 Entered run_python_sandbox()
+[11/29/25 21:58:44] INFO     Processing request of type CallToolRequest                                                           server.py:534
+[11/29/25 21:58:45] INFO     HTTP Request: POST https://html.duckduckgo.com/html "HTTP/1.1 200 OK"                              _client.py:1740
+[21:58:46] [perception] Raw output: ```json
+{
+  "intent": "Summarize search results about cricket.",
+  "entities": ["cricket"],
+  "tool_hint": "The websearch tool has already provided results, so further document analysis might be helpful.",
+  "selected_servers": ["documents"]
+}
+```
+result {'intent': 'Summarize search results about cricket.', 'entities': ['cricket'], 'tool_hint': 'The websearch tool has already provided results, so further document analysis might be helpful.', 'selected_servers': ['documents']}
+[21:58:46] [history] Similar examples for 'Original user task: Describe in brief about cricket game?
+
+Your last tool produced this result:
+
+meta=None content=[TextContent(type='text', text='{"result": "Found 5 search results:\\n\\n1. Cricket - Wikipedia\\n   URL: https://en.wikipedia.org/wiki/Cricket\\n   Summary: Cricketis a bat-and-ballgamethat is played between two teams of eleven players on a field, at the centre of which is a 22-yard (20-metre; 66-foot) pitch with a wicket at each end, each comprising two bails (small sticks) balanced on three stumps. Two players from the batting team, the striker and nonstriker, stand in front of either wicket holding bats, while one player from the fielding ...\\n\\n2. Cricket | Definition, Origin, History, Equipment, Gameplay, Rules ...\\n   URL: https://www.britannica.com/sports/cricket-sport\\n   Summary: Cricket, England\'s national summer sport, is now played throughout the world, particularly in Australia, India, Pakistan, the West Indies, and the British Isles. It is played with a bat and ball and involves two competing sides (teams) of 11 players. Learn more aboutcricket, including its rules and origin.\\n\\n3. How to Understand Cricket: Rules Guide for Beginners - wikiHow\\n   URL: https://www.wikihow.com/Understand-the-Basic-Rules-of-Cricket\\n   Summary: CricketObjectiveCricketis a bat-and-ballgameplayed by 2 teams of 11 players. One side bats and runs to the other end of the pitch to score. The other team bowls (pitches) and tries to break the wicket (goal) for extra points or to get the batters out. The team with the highest score after a set number of innings wins the match.\\n\\n4. Cricket beginner guide: Here\'s all you need to know - Red Bull\\n   URL: https://www.redbull.com/gb-en/how-to-play-cricket-beginner-guide\\n   Summary: From confusing rules to scoring and strategies, we\'ve got you covered when it comes tocricket. Get ready to step up to the crease with our ultimate beginners\' guide to the sport.\\n\\n5. What is Cricket? A Gentlemen\'s Game! - Topend Sports\\n   URL: https://www.topendsports.com/sport/cricket/basics.htm\\n   Summary: Cricketwas invented in the vast fields of England, supposedly by shepherds who herded their flock. Later on thisgamewas shown benevolence by aristocrats, and now has the stature of being England\'s nationalgame. After a century now,cricketstands in the international arena, with a place of its own. THEGAMECricketinvolves two teams with 11 players on each side. The captain who wins the ...\\n"}', annotations=None)] isError=False
+
+If this fully answers the task, return:
+FINAL_ANSWER: your answer
+
+Otherwise, return the next FUNCTION_CALL.': "What do you know about Don Tapscott and Anthony Williams?" (sim=0.01), "What is the cube of 5 ?" (sim=0.00), "What is the relationship between Gensol and Go-Auto?" (sim=0.00)
+[21:58:46] [plan] Prompt snippet: prompt = f"""
+***LLM PLANNER: CODE GENERATOR***
+
+Tool catalog:
+- search_stored_documents: Search documents to get relevant extracts. Usage: input={"input": {"query": "your query"}} result = await mcp.call_tool('search_stored_documents', input)
+- convert_webpage_url_into_markdown: Return clean webpage content without Ads, and clutter. Usage: input={{"input": {{"url": "https://example.com"}}}} result = await mcp.call_tool('convert_webpage_url_into_markdown', input)
+- extract_pdf: Convert PDF to markdown. Usage: input={"input": {"file_path": "documents/sample.pdf"} } result = await mcp.call_tool('extract_pdf', input)
+
+User query:
+"Original user task: Describe in brief about cricket game?
+
+Your last tool produced this result:
+
+meta=None content=[TextContent(type='text', text='{"result": "Found 5 search results:\\n\\n1. Cricket - Wikipedia\\n   URL: https://en.wikipedia.org/wiki/Cricket\\n   Summary: Cricketis a bat-and-ballgamethat is played between two teams of eleven players on a field, at the centre of which is a 22-yard (20-metre; 66-foot) pitch with a wicket at each end, each comprising two bails (small sticks) balanced on three stumps. Two players from the batting team, the striker and nonstriker, stand in front of either wicket holding bats, while one player from the fielding ...\\n\\n2. Cricket | Definition, Origin, History, Equipment, Gameplay, Rules ...\\n   URL: https://www.britannica.com/sports/cricket-sport\\n   Summary: Cricket, England\'s national summer sport, is now played throughout the world, particularly in Australia, India, Pakistan, the West Indies, and the British Isles. It is played with a bat and ball and involves two competing sides (teams) of 11 players. Learn more aboutcricket, including its rules and origin.\\n\\n3. How to Understand Cricket: Rules Guide for Beginners - wikiHow\\n   URL: https://www.wikihow.com/Understand-the-Basic-Rules-of-Cricket\\n   Summary: CricketObjectiveCricketis a bat-and-ballgameplayed by 2 teams of 11 players. One side bats and runs to the other end of the pitch to score. The other team bowls (pitches) and tries to break the wicket (goal) for extra points or to get the batters out. The team with the highest score after a set number of innings wins the match.\\n\\n4. Cricket beginner guide: Here\'s all you need to know - Red Bull\\n   URL: https://www.redbull.com/gb-en/how-to-play-cricket-beginner-guide\\n   Summary: From confusing rules to scoring and strategies, we\'ve got you covered when it comes tocr...
+[21:58:47] [plan] LLM output: ```python
+import json
+async def solve():
+    """The search_stored_documents tool searches documents to get relevant extracts."""
+    input = {"input": {"query": "brief description of cricket game"}}
+    result = await mcp.call_tool('search_stored_documents', input)
+    return f"FURTHER_PROCESSING_REQUIRED: {result}"
+```
+[action] 🔍 Entered run_python_sandbox()
+/Users/sushantgautam/LearningCourse/TSAI-EAGV2/Session9/GithubUpload/Hybrid-Agent-Planner/.venv/lib/python3.13/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+[11/29/25 21:58:48] INFO     Processing request of type CallToolRequest                                                           server.py:534
+INFO: Index already exists. Skipping regeneration.
+SEARCH: Query: brief description of cricket game
+                    INFO     Warning: PydanticDeprecatedSince211: Accessing the 'model_fields' attribute on the instance is       server.py:524
+                             deprecated. Instead, you should access this attribute from the model class. Deprecated in Pydantic                
+                             V2.11 to be removed in V3.0.                                                                                      
+[21:58:49] [perception] Raw output: ```json
+{
+  "intent": "Provide a brief description of the cricket game based on the provided content.",
+  "entities": ["cricket"],
+  "tool_hint": null,
+  "selected_servers": ["documents"]
+}
+```
+result {'intent': 'Provide a brief description of the cricket game based on the provided content.', 'entities': ['cricket'], 'tool_hint': None, 'selected_servers': ['documents']}
+[21:58:49] [history] Similar examples for 'Original user task: Describe in brief about cricket game?
+
+Your last tool produced this result:
+
+meta=None content=[TextContent(type='text', text='Cricket is a bat-and-ball game played between two teams of eleven players on a field, at the centre of which is a 22-yard (20-metre; 66-foot) pitch with a wicket at each end, each comprising two bails (small sticks) balanced on three stumps. Two players from the batting team, the striker and nonstriker, stand in front of either wicket holding bats, while one player from the fielding team, the bowler, bowls the ball toward the striker\'s wicket from the opposite end of the pitch. The striker\'s goal is to hit the bowled ball with the bat and then switch places with the nonstriker, with the batting team scoring one run for each of these exchanges. Runs are also scored when the ball reaches the boundary of the field or when the ball is bowled illegally. The fielding team aims to prevent runs by dismissing batters (so they are "out"). Dismissal can occur in various ways, including being bowled (when the ball hits the striker\'s wicket and dislodges the bails), and by the fielding side either catching the ball after it is hit by the bat but before it hits the ground, or hitting a wicket with the ball before a batter can cross the crease line in front of the wicket. When ten batters have been dismissed, the innings (playing phase) ends and the teams swap roles. Forms of cricket range from traditional Test matches played over five days to the newer Twenty20 format (also known as T20), in which each team bats for a single innings of 20 overs (each "over" being a set of 6 fair opportunities for the batting team to score) and the game generally lasts three to four hours. Traditionally, cricketers play in all-white kit, but in limited overs cricket, they wear club or team colours.\n[Source: cricket.txt, ID: cricket_0]', annotations=None), TextContent(type='text', text="In addition to the basic kit, some players wear protective gear to prevent injury caused by the ball, which is a hard, solid spheroid made of compressed leather with a slightly raised sewn seam enclosing a cork core layered with tightly wound string. The earliest known definite reference to cricket is to it being played in South East England in the mid-16th century. It spread globally with the expansion of the British Empire, with the first international matches in the second half of the 19th century. The game's governing body is the International Cricket Council (ICC), which has over 100 members, twelve of which are full members who play Test matches. The game's rules, the Laws of Cricket, are maintained by Marylebone Cricket Club (MCC) in London. The sport is followed primarily in South Asia, Australia, New Zealand, the United Kingdom, Southern Africa, and the West Indies. While traditionally, cricket has largely been played by men, Women's cricket has experienced large growth in the 21st century. The most successful side playing international cricket is Australia, which has won eight One Day International trophies, including six World Cups, more than any other country, and has been the top-rated Test side more than any other country.\n[Source: cricket.txt, ID: cricket_1]", annotations=None), TextContent(type='text', text="DLF Limited (formerly Delhi Land & Finance) is an Indian commercial real estate development company. It was founded by Chaudhary Raghvendra Singh in 1946, and it is based in New Delhi, India.[2][3] DLF has developed residential colonies in Delhi such as Model Town, Rajouri Garden, Krishna Nagar, South Extension, Greater Kailash, Kailash Colony, and Hauz Khas. DLF builds residential, office, and retail properties.[4][5] With the passage of the Delhi Development Act in 1957, the local government assumed control of real estate development and banned private real estate developers from Delhi proper. As a result, DLF began acquiring land at a relatively low cost outside the area controlled by the Delhi Development Authority, in the district of Gurgaon, and in the adjacent state of Haryana. In the mid-1970s, the company started developing their DLF City project at Gurgaon. This included hotels, infrastructure, and special economic zones-related development projects. The company is headed by Rajiv Singh, who is the current chairman of the DLF Group. According to the Forbes listing of richest billionaires in 2023, Kushal Pal Singh, Chairman Emeritus, is the 19th richest man in India with a net worth of US$8.8 billion. The company's $US$2 billion IPO in July 2007 was India's biggest IPO in history.[6] In its first quarter results for the period ending 30 June 2007, the company reported a turnover of ₹31.2098 billion (US$360 million) and profit after taxes of ₹15.1548 billion (US$180 million).[7] As of 31 March 2012, the company had 1,380 square feet of leased retail space across the country.[8] In 2013-14, it leased out 3 million sq ft of office space in India.[9][10] History DLF's first residential project was Krishna Nagar in East Delhi, which was completed in 1949. Subsequently, the company developed 21 colonies in Delhi, including Model Town, Rajouri Garden, Punjabi Bagh, South Extension, Greater Kailash, Kailash Colony and Hauz Khas. The passage of Delhi Development Act in 1957 was the first serious challenge to company's growth. The Act meant that the government would assume control of all real estate development activities in the city.[11] As a result, DLF decided to move beyond Delhi and focused on the suburb of Gurgaon in Haryana,[12] which had the potential for development of residential and commercial properties. As DLF started to acquire land under the leadership of Chairman K.P. Singh, Gurgaon embarked on a period of rapid growth.[13] A ₹58 crore deal was cancelled between DLF and Robert Vadra by IAS officer Ashok Khemka.[14] Sponsorship In 2008, DLF became the title sponsor of the Indian Premier League, a newly formed Twenty20 cricket league. DLF paid close to ₹2 billion (US$23 million) for the five-year sponsorship deal.[15] The deal ended in the 2012 version of the season, wherein it was taken over by Pepsi. Beyond buildings Haryana Urban Development Authority (HUDA) and DLF, in a 50:50 joint venture, have completed work on a 16-lane, 10.5 km road network in Gurgaon. This stretch from NH8 Toll Plaza to Sector 55/56 in Gurgaon with six underpasses, one flyover and freeways has improved traffic management in the city.[16] To create this\n[Source: dlf.md, ID: dlf_0]", annotations=None), TextContent(type='text', text='acquired based on traditional knowledge. |S. No.|Intellectual Property based on traditional knowledge|Owned/ Acquired (Y/ N)|Benefit shared (Y/ N)|Basis of calculating benefit share| |---|---|---|---|---| |Not Applicable||||| 5. \x07Details of corrective actions taken or underway, based on any adverse order in intellectual property related disputes wherein usage of traditional knowledge is involved. |Name of authority|Brief of the Case|Corrective action taken| |---|---|---| |Not Applicable||| 17 Data is provided on the basis of proportion of suppliers covered from the total supplier base (by supplier count). 45 Content ----- DLF ANNUAL REPORT 2022 - 23 Business Responsibility and Sustainability Report 6. Details of beneficiaries of CSR Projects: |S. No.|CSR Project|No. of persons benefitted from CSR Projects|% of beneficiaries from vulnerable and marginalized groups| |---|---|---|---| |1|DLF CARES Education Support Programme.|1,550|100%| |2|Family Health Centre in Gwal Pahari, Gurugram in collaboration with Adharshila Trust providing free healthcare to rural communities.|1,000|100%| |3|Rehabilitation of homeless persons in partnership with Society for Promotion of Youth and Masses (SPYM).|149|100%| |4|Health screening camps organised with Fortis.|517|100%| |5|Healthcare support to persons with disabilities in partnership with Samkalp.|642|100%| |6|Social welfare for inclusive development of children from marginalised communities and children with disabilities in partnership with Vision for Health Welfare and Special Needs (VISHWAS) Vidyalaya.|34|100%| |7|DLF Golf Excellence Programme to support talented and aspiring golfers i.e. young boys and girls through intensive coaching in order to ensure they emerge as leaders in the sport of Golf.|12|N.A.| |8|Ambulance services – DLF Foundation provides 24×7 free ambulance services for general public in multiple locations of Delhi-NCR.|1,690|100%| |9|Support to Gunjan Foundation to provide quality school education to underprivileged children (including provision of school fee, transport, school bags etc.).|179|100%| |10|Affordable healthcare for the poor by providing high end diagnostic equipment including CT Scan machine etc. at the Landour Community Hospital, Mussoorie.|The equipment is used as part of surgical procedures undertaken at the Hospital. serving the population of the area.|100%| |11|Free and subsidised Healthcare facilities provided to stray animals at CGS Hospital’s Pasha Wing.|Animal Beneficiaries Approximately 4,057 OPDs; 497 surgeries; 3,560 vaccines; 2,205 animal cases given radiological diagnostics; 5,837 laboratory tests.|100%| |12|Provided shelter and medical care to animals through a non- profit organization - All Creatures Great and Small (ACGS).|Total Animal Beneficiaries 7,980.|100%| |13|Saving Lives Through Safer Roads project focuses on ensuring pedestrian safety on high traffic roads by constructing safe pedestrian crossovers and corridors, elevator access for differently abled and senior citizens, all-weather tops, foot over bridge, adequate lighting and directional signages.|The project is aimed at general public.|N.A.| |14|Plantation and Greening Projects in Gurugram, Delhi, Noida, Chennai and Hyderabad.|The project is aimed at upgrading the environmental footprint. Total Green Area Developed: 51,558 sq. mtr.; Total trees/ plants planted ~3,77,819.|N.A.| |15|To improve the safety and security of women commuters in streets of Indian cities, DLF Foundation supported Police surveillance of the streets in New Delhi.|The project benefits all women commuters in the identified Project areas.|N.A.| 46 Content ----- PRINCIPLE 9: Businesses should engage with and provide value to their consumers in a responsible manner **Essential Indicators** 1. \x07Describe the mechanisms in place to receive and respond to consumer complaints and feedback. Customer feedback,\n[Source: DLF_13072023190044_BRSR.pdf, ID: DLF_13072023190044_BRSR_40]', annotations=None), TextContent(type='text', text='Crore received from Gensol, as mentioned in para 63 above, Rs. 382.84 Crore was transferred by Wellray to various other entities. These transfers may be broadly categorized as follows: |Name of the Party|Amount paid during FY23 and FY24 (Rs.)| |---|---| |Related/Linked parties of Gensol|246.07 Crore| |Sharekhan Limited|40.70 Crore| |Public Shareholders of Gensol|5.17 Crore| |Others|90.90 Crore| |Total|382.84 Crore| 66. The break-up of the funds paid to related parties and connected entities of Gensol by Wellray in FY 23 and FY 24 is given in the Table below: **___________________________________________________________________________ ** **Interim Order in the matter of Gensol Engineering Limited Page 19 of 29** ----- |Col1|Col2|Col3|Col4|Rs. In Crores| |---|---|---|---|---| |Name of the Party|Funds transferred during FY 2022-23|Funds transferred during FY 2023-24|Total amount paid during FY 2022-23 to FY 2023-24|Relationship with Gensol| |Anmol Singh Jaggi|19.48|6.28|25.76|Promoter of Gensol| |Puneet Singh Jaggi|10.66|2.90|13.55|Promoter of Gensol| |Gensol Ventures Pvt. Ltd.|-|16.00|16.00|Promoter of Gensol| |Capbridge Venture LLP|5.00|6.00|11.00|Designated Partners are Anmol Singh Jaggi and Puneet Singh Jaggi| |Matrix Gas and Renewable Ltd.|40.20|23.70|63.90|Disclosed Related Party| |Gosolar Ventures Pvt. Ltd.|19.80|48.20|68.00|Disclosed Related Party| |Gensol Consultants Pvt. Ltd.|11.50|10.10|21.60|Disclosed Related Party| |Blu-Smart Fleet Pvt. Ltd.|10.00|-|10.00|Disclosed Related Party| |Prescinto Technologies Pvt. Ltd.|3.84|5.42|9.26|Disclosed Related Party| |Param Renewable Energy Pvt. Ltd.|7.00||7.00|Disclosed Related Party| |Total|127.47|118.60|246.07|| ### 67. As brought out in the Table above, Wellray has transferred funds amounting to Rs. 39.31 Crore to Anmol Singh Jaggi and Puneet Singh Jaggi, promoters of Gensol. The details of the analysis of the further utilization of funds by the said promotors are given below: ***Utilization of funds by Anmol Singh Jaggi*** ### 68. From the analysis of the bank statements of Anmol Singh Jaggi, it is prima-facie observed that majority of the funds (Rs. 25.76 Crore) as mentioned above, were transferred to other related parties, family members or utilized for personal expenses. The details of further utilisation of funds received from Wellray by Anmol Singh Jaggi are given in the Table below: |Name of The Party|Amount (Rs.)|Remarks| |---|---|---| |Gensol Ventures Pvt. Ltd.|10,63,91,890|Promoter of Gensol| |Jasminder Kaur|6,20,22,500|Mother of Anmol Singh Jaggi| |Mugdha Kaur Jaggi|2,98,50,000|Spouse of Anmol Singh Jaggi| |Foreign Currency Purchased - AED|1,86,35,600|Appears to be for personal use| **___________________________________________________________________________ ** **Interim Order in the matter of Gensol Engineering Limited Page 20 of 29** ----- |Name of The Party|Amount (Rs.)|Remarks| |---|---|---| |Batx Energies Private Limited|1,35,19,600|Anmol Singh Jaggi is a shareholder in Batx Energies Private Limited (holding 681 shares as of 31-03-2024)| |Third Unicorn Private Limited|50,00,000|Anmol Singh Jaggi is a shareholder in Third Unicorn Private Limited (holding 2000 shares as of 31-03-2024).| |TaylorMade|26,00,000|Appears to be related to purchase of golf set| |Capbridge Venture LLP|25,00,000|Designated Partners are Anmol Singh Jaggi and Puneet Singh Jaggi| |ICICI Securities|23,00,000|Appears to be for personal use| |Jabir Mahendi M|20,00,000|Jabir Mahendi M worked as CFO of GEL from 2019- to 2024| |Titan Company|17,28,350|Appears to be for personal use| |DLF Homes|11,75,000|Appears to be for personal use| |Kamco Chew Food Pvt Ltd Spa|10,36,860|Appears to be for personal use| |ICICI Bank Credit Card|9,95,266|Credit Card payment. Appears to be for personal use.| |Mayo Design|8,00,000|Appears to be for personal use| |Shalmali Kaur Jaggi|6,00,000|Former Director of GEL and Gensol Consultants Private Limited and current director of Param Seva Foundation (disclosed\n[Source: INVG67564.pdf, ID: INVG67564_23]', annotations=None)] isError=False
+
+If this fully answers the task, return:
+FINAL_ANSWER: your answer
+
+Otherwise, return the next FUNCTION_CALL.': "How much Anmol singh paid for his DLF apartment via Capbridge?" (sim=0.01), "What is the relationship between Gensol and Go-Auto?" (sim=0.00), "Who are Gensol and Go-Auto?" (sim=0.00)
+[21:58:49] [plan] Prompt snippet: prompt = f"""
+***LLM PLANNER: CODE GENERATOR***
+
+Tool catalog:
+- search_stored_documents: Search documents to get relevant extracts. Usage: input={"input": {"query": "your query"}} result = await mcp.call_tool('search_stored_documents', input)
+- convert_webpage_url_into_markdown: Return clean webpage content without Ads, and clutter. Usage: input={{"input": {{"url": "https://example.com"}}}} result = await mcp.call_tool('convert_webpage_url_into_markdown', input)
+- extract_pdf: Convert PDF to markdown. Usage: input={"input": {"file_path": "documents/sample.pdf"} } result = await mcp.call_tool('extract_pdf', input)
+
+User query:
+"Original user task: Describe in brief about cricket game?
+
+Your last tool produced this result:
+
+meta=None content=[TextContent(type='text', text='Cricket is a bat-and-ball game played between two teams of eleven players on a field, at the centre of which is a 22-yard (20-metre; 66-foot) pitch with a wicket at each end, each comprising two bails (small sticks) balanced on three stumps. Two players from the batting team, the striker and nonstriker, stand in front of either wicket holding bats, while one player from the fielding team, the bowler, bowls the ball toward the striker\'s wicket from the opposite end of the pitch. The striker\'s goal is to hit the bowled ball with the bat and then switch places with the nonstriker, with the batting team scoring one run for each of these exchanges. Runs are also scored when the ball reaches the boundary of the field or when the ball is bowled illegally. The fielding team aims to prevent runs by dismissing batters (so they are "out"). Dismissal can occur in various ways, including being bowled (when the ball hits the striker\'s wicket and dislodges the bails), and by the fielding side either catching the ball after it is hit by the bat but before it hits the ground, or hitting a wicket with the ball before a batter can cross the crease line in front of the wicket. When ten batters have been dismissed, the innings (playing phase) ends and the teams swap roles. Forms of cricket range from traditional Test matches played over five days to the newer Twenty20 format (also known as T20), in which each team bats for a single innings of 20 overs (each "over" being a set of 6 fair opportunities for the batting team to score) and the game generally lasts three to four hours. Traditionally, cricketers play in all-white kit, but in limited overs cricket, they wear club or team colours.\n[Source: cricket....
+[21:58:50] [plan] LLM output: ```python
+import json
+async def solve():
+    """Search documents to get relevant extracts. Usage: input={"input": {"query": "your query"}} result = await mcp.call_tool('search_stored_documents', input)"""
+    input = {"input": {"query": "cricket game description"}}
+    result = await mcp.call_tool('search_stored_documents', input)
+    return f"FURTHER_PROCESSING_REQUIRED: {result}"
+```
+[action] 🔍 Entered run_python_sandbox()
+/Users/sushantgautam/LearningCourse/TSAI-EAGV2/Session9/GithubUpload/Hybrid-Agent-Planner/.venv/lib/python3.13/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+[11/29/25 21:58:51] INFO     Processing request of type CallToolRequest                                                           server.py:534
+INFO: Index already exists. Skipping regeneration.
+SEARCH: Query: cricket game description
+                    INFO     Warning: PydanticDeprecatedSince211: Accessing the 'model_fields' attribute on the instance is       server.py:524
+                             deprecated. Instead, you should access this attribute from the model class. Deprecated in Pydantic                
+                             V2.11 to be removed in V3.0.                                                                                      
+[21:58:51] [loop] ⚠️ FURTHER_PROCESSING_REQUIRED exceeded budget — forcing FINAL_ANSWER via summarization.
+[21:58:52] [history] ✅ Updated historical index for session 2025/11/29/session-1764482083-7df026 (added 1 entries).
+
+💡 Final Answer: Cricket is a bat-and-ball game played between two teams of eleven players, where the batting team scores runs by hitting a bowled ball and exchanging places, while the fielding team tries to dismiss batters and prevent runs. Cricket has different formats, ranging from Test matches to Twenty20, and is governed by the International Cricket Council (ICC).
