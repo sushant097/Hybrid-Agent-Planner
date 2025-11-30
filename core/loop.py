@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+from pathlib import Path
 from typing import Optional
 
 from core import context
@@ -16,7 +17,7 @@ from modules.tools import summarize_tools
 
 from modules.historical_index import (
     update_index_for_session,
-    load_similar_examples,
+    find_best_cached_answer,
 )
 
 try:
@@ -29,37 +30,14 @@ except ImportError:
         print(f"[{now}] [{stage}] {msg}")
 
 
-def maybe_answer_from_history(user_input: str) -> Optional[str]:
-    """
-    Try to directly reuse a prior FINAL_ANSWER from historical_conversation_store.json
-    if we clearly answered this same question before.
+# 🔧 Global verbose toggle (will be set from profiles.yaml at runtime)
+VERBOSE_LOG = False
 
-    Strategy:
-    - Use load_similar_examples() to get top_k candidates by keyword overlap.
-    - Then do a strict, case-insensitive string match on user_query.
-    - Only return if we have a FINAL_ANSWER: ... string.
-    """
-    if not user_input:
-        return None
 
-    examples = load_similar_examples(user_input, top_k=3)
-    if not examples:
-        return None
-
-    normalized_query = user_input.strip().lower()
-
-    for ex in examples:
-        ex_query = (ex.get("user_query") or "").strip().lower()
-        final_answer = ex.get("final_answer") or ""
-
-        if (
-            ex_query == normalized_query
-            and isinstance(final_answer, str)
-            and final_answer.startswith("FINAL_ANSWER:")
-        ):
-            return final_answer
-
-    return None
+def vlog(stage: str, msg: str) -> None:
+    """Verbose logger: only prints when VERBOSE_LOG is True."""
+    if VERBOSE_LOG:
+        log(stage, msg)
 
 
 class AgentLoop:
@@ -67,6 +45,41 @@ class AgentLoop:
         self.context = context
         self.mcp = self.context.dispatcher
         self.model = ModelManager()
+
+        # ---- Read custom config from profiles.yaml (with safe defaults) ----
+        cfg = getattr(self.context.agent_profile, "custom_config", None)
+
+        self.verbose_logging = False
+        self.jaccard_similarity_threshold = 0.80
+        self.memory_index_file = "memory/historical_conversation_store.json"
+
+        if cfg is not None:
+            # profiles.yaml:
+            # custom_config:
+            #   jaccard_similarity_threshold: 0.85
+            #   verbose_logging: true
+            #   memory_index_file: "memory/historical_conversation_store.json"
+            self.verbose_logging = getattr(cfg, "verbose_logging", False)
+            self.jaccard_similarity_threshold = getattr(
+                cfg, "jaccard_similarity_threshold", 0.85
+            )
+            self.memory_index_file = getattr(
+                cfg, "memory_index_file", "memory/historical_conversation_store.json"
+            )
+
+        # Derive memory_root from memory_index_file path
+        # e.g., "memory/historical_conversation_store.json" -> "memory"
+        self.memory_root = str(Path(self.memory_index_file).parent)
+
+        # set global verbose log flag
+        global VERBOSE_LOG
+        VERBOSE_LOG = bool(self.verbose_logging)
+        # verbose log initial settings
+        vlog(
+            "initial params",
+            f"Initialized with jaccard_similarity_threshold={self.jaccard_similarity_threshold}, "
+            f"memory_index_file={self.memory_index_file}"
+        )
 
     def _update_historical_index(self):
         """
@@ -84,8 +97,7 @@ class AgentLoop:
         Turn raw tool output + user question into a concise final answer.
 
         This is called when we've hit the FURTHER_PROCESSING_REQUIRED limit.
-        It is fully generic: works for "relationship" questions, factual questions,
-        numeric questions, etc., without special branching in Python.
+        It is fully generic.
         """
 
         prompt = f"""
@@ -101,36 +113,25 @@ It may include URLs, summaries, long snippets, or even messages like "no results
 
 Follow this process strictly:
 
-1. Understand what the user is actually asking for
-   (e.g., description of people, relationship between entities, a specific amount,
-   a definition, a comparison, etc.).
+1. Understand what the user is actually asking for.
 
 2. Read the context carefully and look for ANY information that helps answer the question.
-   Pay special attention to:
-   - How entities are connected (customer/vendor, owner/subsidiary, intermediary,
-     related party, fund flow between them, etc.).
-   - Numbers (amounts, prices, quantities), dates, names, and clear statements.
 
 3. If the context clearly contains enough information to answer, give a direct,
    specific answer in 1–2 sentences.
 
 4. If the context is partial but still gives clues, synthesize the best possible
-   answer. In that case:
-   - Make a reasonable inference.
-   - Mention that the answer is based on limited information from the context.
+   answer and mention that it is based on limited information.
 
-5. Only answer exactly "unknown" (or an equivalent like "cannot be determined from the context")
-   if BOTH of these are true:
-   - The context is truly unrelated to the question OR explicitly says that no results
-     or no information were found, AND
-   - After reading everything, you find no useful evidence that helps answer the question.
+5. Only answer exactly "unknown" (or equivalent) if:
+   - The context is truly unrelated or explicitly says no info was found, AND
+   - After reading everything, you find no useful evidence.
 
 Important:
-- Prefer giving a best-effort, concrete answer over saying "unknown" whenever the
+- Prefer giving a best-effort answer over saying "unknown" whenever the
   context contains any relevant evidence.
 - Do NOT repeat large chunks of the context. Just state the conclusion.
-- Your final output must be ONLY the answer text, no bullet points, no explanation
-  of your steps.
+- Final output must be ONLY the answer text.
 
 Now, provide your final answer. If long answer multi-paragraph, summarize in one sentence.
 """
@@ -144,28 +145,43 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
             return tool_result[:2000]
 
     async def run(self):
-        # 0) Try to answer purely from historical memory before doing ANY work
+        # ---------------------------------------------------------
+        # Sync global VERBOSE_LOG with profiles.yaml
+        # ---------------------------------------------------------
+        global VERBOSE_LOG
+        VERBOSE_LOG = bool(self.verbose_logging)
+
+        # ---------------------------------------------------------
+        # 0) Try SEMANTIC CACHE first (no perception, no tools)
+        # ---------------------------------------------------------
         original_query = self.context.user_input or ""
-        memory_hit = maybe_answer_from_history(original_query)
-        if memory_hit:
-            log("loop", "✅ Historical memory hit — returning cached FINAL_ANSWER.")
-            self.context.final_answer = memory_hit
 
-            # Log into current session memory so this turn is still represented
+        # Use threshold + memory_root from profiles.yaml
+        semantic_hit = find_best_cached_answer(
+            user_query=original_query,
+            min_similarity=self.jaccard_similarity_threshold,
+            memory_root=self.memory_root,
+        )
+
+        if semantic_hit:
+            log("loop", "⚡ Semantic memory hit — returning cached FINAL_ANSWER.")
+            # semantic_hit already starts with FINAL_ANSWER:
+            self.context.final_answer = semantic_hit.strip()
+            # Log into current session memory so this turn is represented
             self.context.memory.add_final_answer(self.context.final_answer)
-            # Update global historical index with this session's data
             self._update_historical_index()
-
             return {"status": "done", "result": self.context.final_answer}
 
-        # 1) Normal multi-step loop (your existing behavior)
+        # ---------------------------------------------------------
+        # 1) Normal multi-step loop
+        # ---------------------------------------------------------
+
         max_steps = self.context.agent_profile.strategy.max_steps
         allowed_fpr_uses = max_steps - 1  # e.g., 2 when max_steps = 3
-        # track how many times we've used FURTHER_PROCESSING_REQUIRED
         self.further_processing_uses = 0
 
         for step in range(max_steps):
-            print(f"🔁 Step {step+1}/{max_steps} starting...")
+            vlog("loop", f"🔁 Step {step+1}/{max_steps} starting...")
             self.context.step = step
             lifelines_left = self.context.agent_profile.strategy.max_lifelines_per_step
 
@@ -177,7 +193,7 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
                     user_input=user_input_override or self.context.user_input,
                 )
 
-                print(f"[perception] {perception}")
+                vlog("perception", f"{perception}")
 
                 selected_servers = perception.selected_servers
                 selected_tools = self.mcp.get_tools_from_servers(selected_servers)
@@ -195,7 +211,7 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
                 )
 
                 plan = await generate_plan(
-                    user_input=effective_user_input,  # ✅ use override
+                    user_input=effective_user_input,
                     perception=perception,
                     memory_items=self.context.memory.get_session_items(),
                     tool_descriptions=tool_descriptions,
@@ -203,9 +219,10 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
                     step_num=step + 1,
                     max_steps=max_steps,
                 )
-                print(f"[plan] {plan}")
+                vlog("plan", f"{plan}")
 
                 # === Execution ===
+
                 # 0) Direct FINAL_ANSWER / FURTHER_PROCESSING from planner (no sandbox)
                 if isinstance(plan, str) and (
                     plan.startswith("FINAL_ANSWER:")
@@ -213,18 +230,13 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
                 ):
                     log("loop", "✅ Planner returned direct answer, skipping sandbox.")
                     self.context.final_answer = plan
-
-                    # ✅ Persist to this session's memory log
                     self.context.memory.add_final_answer(self.context.final_answer)
-
-                    # ✅ Update global historical index (historical_conversation_store.json)
                     self._update_historical_index()
-
                     return {"status": "done", "result": self.context.final_answer}
 
                 # 1) Normal case: LLM returned a solve() function (code plan)
                 if re.search(r"^\s*(async\s+)?def\s+solve\s*\(", plan, re.MULTILINE):
-                    print("[loop] Detected solve() plan — running sandboxed...")
+                    vlog("loop", "[loop] Detected solve() plan — running sandboxed...")
 
                     self.context.log_subtask(tool_name="solve_sandbox", status="pending")
                     result = await run_python_sandbox(plan, dispatcher=self.mcp)
@@ -243,11 +255,8 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
                                 success=True,
                                 tags=["sandbox"],
                             )
-
-                            # NEW: store final answer + update global history
                             self.context.memory.add_final_answer(self.context.final_answer)
                             self._update_historical_index()
-
                             return {"status": "done", "result": self.context.final_answer}
 
                         elif result.startswith("FURTHER_PROCESSING_REQUIRED:"):
@@ -255,7 +264,7 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
                             self.further_processing_uses += 1
 
                             if self.further_processing_uses <= allowed_fpr_uses:
-                                # ✅ Still allowed to forward
+                                # Forward intermediate result into next step
                                 self.context.user_input_override = (
                                     f"Original user task: {self.context.user_input}\n\n"
                                     f"Your last tool produced this result:\n\n"
@@ -264,18 +273,18 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
                                     f"FINAL_ANSWER: your answer\n\n"
                                     f"Otherwise, return the next FUNCTION_CALL."
                                 )
-                                log(
+                                vlog(
                                     "loop",
-                                    f"📨 Forwarding intermediate result to next step:\n{self.context.user_input_override}\n\n",
+                                    "📨 Forwarding intermediate result to next step.",
                                 )
-                                log(
+                                vlog(
                                     "loop",
                                     f"🔁 Continuing based on FURTHER_PROCESSING_REQUIRED — Step {step+1} continues...",
                                 )
                                 break  # go to next step
 
                             else:
-                                # ❌ We've exceeded the allowed FPR uses, must finalize now
+                                # Exceeded FPR budget: summarize and stop
                                 log(
                                     "loop",
                                     "⚠️ FURTHER_PROCESSING_REQUIRED exceeded budget — forcing FINAL_ANSWER via summarization.",
@@ -286,7 +295,6 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
                                 )
                                 self.context.final_answer = f"FINAL_ANSWER: {final_answer}"
                                 self.context.memory.add_final_answer(self.context.final_answer)
-                                # NEW: update global history when forced finalizing
                                 self._update_historical_index()
                                 return {
                                     "status": "done",
@@ -316,16 +324,15 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
                     )
 
                     if success and "FURTHER_PROCESSING_REQUIRED:" not in result:
-                        # NEW: ensure final answer is recorded and indexed
                         self.context.memory.add_final_answer(self.context.final_answer)
                         self._update_historical_index()
                         return {"status": "done", "result": self.context.final_answer}
                     else:
                         lifelines_left -= 1
-                        log("loop", f"🛠 Retrying... Lifelines left: {lifelines_left}")
+                        vlog("loop", f"🛠 Retrying... Lifelines left: {lifelines_left}")
                         continue
                 else:
-                    log(
+                    vlog(
                         "loop",
                         f"⚠️ Invalid plan detected — retrying... Lifelines left: {lifelines_left-1}",
                     )
