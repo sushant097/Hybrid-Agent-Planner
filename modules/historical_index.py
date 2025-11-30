@@ -291,6 +291,7 @@ def _parse_session_memory(memory_path: Path, session_id: str) -> List[Historical
             if evt2.get("type") == "run_metadata":
                 break
 
+            # 1) Tools and tags as before
             if evt2.get("type") == "tool_output":
                 tool_name = evt2.get("tool_name")
                 if tool_name:
@@ -305,6 +306,11 @@ def _parse_session_memory(memory_path: Path, session_id: str) -> List[Historical
                 evt_tags = evt2.get("tags") or []
                 if isinstance(evt_tags, list):
                     tags.extend(str(t) for t in evt_tags)
+
+            # 2) NEW: always check for final_answer in ANY event
+            fa = _extract_final_answer(evt2)
+            if fa:
+                final_answer = fa
 
             j += 1
 
