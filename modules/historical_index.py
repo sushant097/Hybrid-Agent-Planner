@@ -1,13 +1,16 @@
 import json
 import re
+import difflib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
+# -------------------------------------------------------------------
 # Optional logging from agent.py
+# -------------------------------------------------------------------
 try:
     from agent import log
-except ImportError:  # Fallback logger
+except ImportError:
     import datetime
 
     def log(stage: str, msg: str) -> None:
@@ -15,7 +18,18 @@ except ImportError:  # Fallback logger
         print(f"[{now}] [{stage}] {msg}")
 
 
-# ---------- Data model ----------
+# -------------------------------------------------------------------
+# Optional YAML support (for config/profiles.yaml)
+# -------------------------------------------------------------------
+try:
+    import yaml
+except ImportError:  # pragma: no cover - very small fallback
+    yaml = None
+
+
+# -------------------------------------------------------------------
+# Data model
+# -------------------------------------------------------------------
 
 @dataclass
 class HistoricalExample:
@@ -41,27 +55,74 @@ class HistoricalExample:
         }
 
 
-# ---------- Paths & helpers ----------
+# -------------------------------------------------------------------
+# Config helpers
+# -------------------------------------------------------------------
 
-def _find_memory_root(memory_path: Path) -> Path:
-    """
-    Given the per-session memory JSON path, walk up until we find the 'memory'
-    directory. If not found, fall back to its parent directory.
-    """
-    for parent in [memory_path] + list(memory_path.parents):
-        if parent.name == "memory":
-            return parent
-    return memory_path.parent
+_DEFAULT_INDEX_PATH = Path("memory") / "historical_conversation_store.json"
 
 
-def _get_index_path(memory_path: Path) -> Path:
+def _load_profiles_custom_config() -> Dict[str, Any]:
     """
-    Global historical index stored as:
-        memory/historical_conversation_store.json
-    """
-    memory_root = _find_memory_root(memory_path)
-    return memory_root / "historical_conversation_store.json"
+    Load custom_config from config/profiles.yaml, if available.
 
+    Expected structure:
+
+      custom_config:
+        jaccard_similarity_threshold: 0.85
+        verbose_logging: true
+        memory_index_file: "memory/historical_conversation_store.json"
+    """
+    if yaml is None:
+        return {}
+
+    profiles_path = Path("config") / "profiles.yaml"
+    if not profiles_path.exists():
+        return {}
+
+    try:
+        with profiles_path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except Exception as e:
+        log("history", f"Failed to read profiles.yaml: {e}")
+        return {}
+
+    if not isinstance(data, dict):
+        return {}
+
+    cc = data.get("custom_config") or {}
+    return cc if isinstance(cc, dict) else {}
+
+
+def _get_index_path() -> Path:
+    """
+    Single source of truth for where the historical index lives.
+
+    Priority:
+    1. custom_config.memory_index_file from config/profiles.yaml
+    2. Fallback: memory/historical_conversation_store.json
+    """
+    cfg = _load_profiles_custom_config()
+    path_str = cfg.get("memory_index_file")
+    if isinstance(path_str, str) and path_str.strip():
+        return Path(path_str.strip())
+    return _DEFAULT_INDEX_PATH
+
+def _get_top_k_value() -> int:
+    """
+    Get the top_k value from custom_config.memory_index_file from config/profiles.yaml
+    Fallback to 3 if not set.
+    """
+    cfg = _load_profiles_custom_config()
+    top_k = cfg.get("top_k_similar_examples")
+    if isinstance(top_k, int) and top_k > 0:
+        return top_k
+    return 3
+
+
+# -------------------------------------------------------------------
+# Text normalization + similarity
+# -------------------------------------------------------------------
 
 _STOPWORDS = {
     "the", "is", "a", "an", "of", "and", "or", "to", "in", "on", "for",
@@ -76,33 +137,68 @@ def _normalize_text(text: str) -> List[str]:
     Very lightweight tokenizer + stopword removal for keyword extraction.
     """
     text = text.lower()
-    # Keep words and numbers
     tokens = re.findall(r"[a-z0-9]+", text)
     return [t for t in tokens if t not in _STOPWORDS]
 
 
-def _load_index(index_path: Path) -> List[Dict[str, Any]]:
+def _normalize_for_similarity(text: str) -> str:
+    """
+    Normalize a string for semantic-ish similarity comparison.
+    """
+    text = text.lower().strip()
+    text = re.sub(r"\s+", " ", text)
+    return text
+
+
+def _string_similarity(a: str, b: str) -> float:
+    """
+    Character-level similarity (SequenceMatcher), for paraphrase-style checks.
+    """
+    return difflib.SequenceMatcher(
+        None,
+        _normalize_for_similarity(a),
+        _normalize_for_similarity(b),
+    ).ratio()
+
+
+# -------------------------------------------------------------------
+# Index I/O
+# -------------------------------------------------------------------
+
+def _load_index(index_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """
+    Load the global historical index as a list of dicts.
+    """
+    if index_path is None:
+        index_path = _get_index_path()
+
     if not index_path.exists():
         return []
+
     try:
         with index_path.open("r", encoding="utf-8") as f:
             data = json.load(f)
-        if isinstance(data, list):
-            return data
-        log("history", "Index file not a list; resetting.")
-        return []
+        return data if isinstance(data, list) else []
     except Exception as e:
         log("history", f"Failed to load historical index: {e}")
         return []
 
 
-def _save_index(index_path: Path, items: List[Dict[str, Any]]) -> None:
+def _save_index(index_path: Optional[Path], items: List[Dict[str, Any]]) -> None:
+    """
+    Save the historical index to disk.
+    """
+    if index_path is None:
+        index_path = _get_index_path()
+
     index_path.parent.mkdir(parents=True, exist_ok=True)
     with index_path.open("w", encoding="utf-8") as f:
         json.dump(items, f, indent=2, ensure_ascii=False)
 
 
-# ---------- Parsing session memory ----------
+# -------------------------------------------------------------------
+# Parsing session memory
+# -------------------------------------------------------------------
 
 def _extract_user_query(run_text: str) -> Optional[str]:
     """
@@ -113,7 +209,6 @@ def _extract_user_query(run_text: str) -> Optional[str]:
     if marker not in run_text:
         return None
     after = run_text.split(marker, 1)[1].strip()
-    # Strip trailing " at YYYY..." part if present
     if " at " in after:
         after = after.split(" at ", 1)[0].strip()
     return after or None
@@ -124,12 +219,12 @@ def _extract_final_answer(entry: Dict[str, Any]) -> Optional[str]:
     Look for a clean FINAL_ANSWER inside a tool_output entry.
     We avoid indexing partial / failed runs.
     """
-    # 1) Prefer explicit final_answer field if present
+    # Prefer explicit "final_answer" field if present
     fa = entry.get("final_answer")
     if isinstance(fa, str) and fa.startswith("FINAL_ANSWER:"):
         return fa
 
-    # 2) Otherwise look into tool_result.result
+    # Otherwise look into tool_result.result
     tool_result = entry.get("tool_result") or {}
     result_text = tool_result.get("result")
     if isinstance(result_text, str) and result_text.startswith("FINAL_ANSWER:"):
@@ -140,27 +235,18 @@ def _extract_final_answer(entry: Dict[str, Any]) -> Optional[str]:
 
 def _should_index_final_answer(fa: str) -> bool:
     """
-    Filter out "junk" FINAL_ANSWER strings like:
-      - FINAL_ANSWER: [Could not generate valid solve()]
-      - FINAL_ANSWER: [unknown]
-      - Diagnostics-only messages
+    Filter out "junk" FINAL_ANSWER strings.
     """
     if not fa.startswith("FINAL_ANSWER:"):
         return False
     lowered = fa.lower()
-    junk_patterns = [
-        "could not generate valid solve",
-        "max steps reached",
-        "unknown",
-        "unexpected",
-    ]
-    return not any(pat in lowered for pat in junk_patterns)
+    for bad in ["could not generate", "unknown", "unexpected"]:
+        if bad in lowered:
+            return False
+    return True
 
 
-def _parse_session_memory(
-    memory_path: Path,
-    session_id: str,
-) -> List[HistoricalExample]:
+def _parse_session_memory(memory_path: Path, session_id: str) -> List[HistoricalExample]:
     """
     Read the per-session memory file and extract (query, FINAL_ANSWER) pairs.
     """
@@ -168,7 +254,7 @@ def _parse_session_memory(
         with memory_path.open("r", encoding="utf-8") as f:
             events = json.load(f)
     except Exception as e:
-        log("history", f"Failed to read memory file {memory_path}: {e}")
+        log("history", f"Failed to read {memory_path}: {e}")
         return []
 
     if not isinstance(events, list):
@@ -177,13 +263,12 @@ def _parse_session_memory(
 
     examples: List[HistoricalExample] = []
     i = 0
-    turn_index = 0
+    turn_idx = 0
 
     while i < len(events):
         evt = events[i]
         i += 1
 
-        # We only care about run_start metadata
         if evt.get("type") != "run_metadata":
             continue
 
@@ -195,7 +280,6 @@ def _parse_session_memory(
         if not user_query:
             continue
 
-        # Find the next tool_output entry for this run
         final_answer: Optional[str] = None
         tools_used: List[str] = []
         successful_tools: List[str] = []
@@ -205,7 +289,6 @@ def _parse_session_memory(
         while j < len(events):
             evt2 = events[j]
             if evt2.get("type") == "run_metadata":
-                # Start of the next run
                 break
 
             if evt2.get("type") == "tool_output":
@@ -214,51 +297,53 @@ def _parse_session_memory(
                     tools_used.append(tool_name)
                     if evt2.get("success") is True:
                         successful_tools.append(tool_name)
+
                 fa = _extract_final_answer(evt2)
-                if fa is not None:
+                if fa:
                     final_answer = fa
 
-                # Merge tags
                 evt_tags = evt2.get("tags") or []
                 if isinstance(evt_tags, list):
                     tags.extend(str(t) for t in evt_tags)
 
             j += 1
 
-        # Move pointer
         i = j
 
         if not final_answer or not _should_index_final_answer(final_answer):
             continue
 
         keywords = _normalize_text(user_query)
-        example = HistoricalExample(
-            session_id=session_id,
-            turn_index=turn_index,
-            user_query=user_query,
-            final_answer=final_answer,
-            tools_used=list(dict.fromkeys(tools_used)),         # dedupe, keep order
-            successful_tools=list(dict.fromkeys(successful_tools)),
-            tags=list(dict.fromkeys(tags)),
-            keywords=keywords,
+        examples.append(
+            HistoricalExample(
+                session_id=session_id,
+                turn_index=turn_idx,
+                user_query=user_query,
+                final_answer=final_answer,
+                tools_used=list(dict.fromkeys(tools_used)),
+                successful_tools=list(dict.fromkeys(successful_tools)),
+                tags=list(dict.fromkeys(tags)),
+                keywords=keywords,
+            )
         )
-        examples.append(example)
-        turn_index += 1
+        turn_idx += 1
 
     return examples
 
 
-# ---------- Public API ----------
+# -------------------------------------------------------------------
+# UPDATE INDEX
+# -------------------------------------------------------------------
 
 def update_index_for_session(memory_path_str: str, session_id: str) -> None:
     """
-    Called from loop.py after each run to keep the global index fresh.
+    Incrementally update the global historical index for this session.
 
-    - memory_path_str: path to the per-session JSON log (from MemoryManager).
-    - session_id: unique ID for this logical session (already built in loop.py).
+    NOTE: The actual index file path is determined by config/profiles.yaml
+    (custom_config.memory_index_file) with a safe fallback.
     """
     memory_path = Path(memory_path_str)
-    index_path = _get_index_path(memory_path)
+    index_path = _get_index_path()
 
     try:
         new_examples = _parse_session_memory(memory_path, session_id)
@@ -267,21 +352,15 @@ def update_index_for_session(memory_path_str: str, session_id: str) -> None:
             return
 
         index = _load_index(index_path)
-
-        # Build a set of (session_id, turn_index) already present
-        existing_keys = {
-            (item.get("session_id"), item.get("turn_index"))
-            for item in index
-            if isinstance(item, dict)
-        }
-
+        existing = {(it.get("session_id"), it.get("turn_index")) for it in index}
         added = 0
+
         for ex in new_examples:
             key = (ex.session_id, ex.turn_index)
-            if key in existing_keys:
+            if key in existing:
                 continue
             index.append(ex.to_dict())
-            existing_keys.add(key)
+            existing.add(key)
             added += 1
 
         if added:
@@ -290,87 +369,118 @@ def update_index_for_session(memory_path_str: str, session_id: str) -> None:
         else:
             log("history", f"Historical index already up-to-date for session {session_id}.")
     except Exception as e:
-        log("history", f"Failed to update historical index for session {session_id}: {e}")
+        log("history", f"Failed to update index for session {session_id}: {e}")
 
+
+# -------------------------------------------------------------------
+# SIMPLE JACCARD (for ranking similar queries)
+# -------------------------------------------------------------------
 
 def _jaccard_similarity(a: List[str], b: List[str]) -> float:
-    """
-    Simple Jaccard similarity over keyword sets.
-    """
     sa, sb = set(a), set(b)
     if not sa or not sb:
         return 0.0
-    inter = len(sa & sb)
-    union = len(sa | sb)
-    return inter / union if union else 0.0
+    return len(sa & sb) / len(sa | sb)
 
+
+# -------------------------------------------------------------------
+# LOAD TOP-K SIMILAR EXAMPLES FOR DECISION PROMPT
+# -------------------------------------------------------------------
 
 def load_similar_examples(
     user_query: str,
-    top_k: int = 3,
-    memory_root: Optional[str] = None,
+    top_k: int = _get_top_k_value(), # Get from config/profiles.yaml
+    memory_root: Optional[str] = None,  # kept for backwards compat, but ignored
 ) -> List[Dict[str, Any]]:
     """
-    Return up to `top_k` historical examples most similar to `user_query`.
+    Return up to `top_k` historical examples most similar to `user_query`
+    using Jaccard similarity over keyword sets.
 
-    Used in:
-      - decision.py (to build {historical_examples} / {memory_texts} sections)
-      - loop.py's `find_cached_answer` (which then does exact-string match
-        on `user_query` to safely reuse a cached FINAL_ANSWER).
+    Path to the index file is taken from config/profiles.yaml (if present).
     """
-    # Locate index file (default: ./memory/historical_conversation_store.json)
-    if memory_root is None:
-        memory_root_path = Path("memory")
-    else:
-        memory_root_path = Path(memory_root)
-
-    index_path = memory_root_path / "historical_conversation_store.json"
-
+    index_path = _get_index_path()
     index = _load_index(index_path)
+
     if not index:
         return []
 
-    q_keywords = _normalize_text(user_query)
+    qkw = _normalize_text(user_query)
+    scored: List[Any] = []
 
-    scored: List[Tuple[float, Dict[str, Any]]] = []
     for item in index:
-        if not isinstance(item, dict):
-            continue
-
         fa = item.get("final_answer")
         uq = item.get("user_query")
+
         if not isinstance(fa, str) or not isinstance(uq, str):
             continue
         if not fa.startswith("FINAL_ANSWER:"):
             continue
-
         if fa.strip() == "FINAL_ANSWER: [Could not generate valid solve()]":
             continue
 
-        kw = item.get("keywords")
-        if not isinstance(kw, list) or not kw:
-            kw = _normalize_text(uq)
-
-        sim = _jaccard_similarity(q_keywords, kw)
-        if sim <= 0:
-            continue
-
-        scored.append((sim, item))
+        kw = item.get("keywords") or _normalize_text(uq)
+        sim = _jaccard_similarity(qkw, kw)
+        if sim > 0:
+            scored.append((sim, item))
 
     if not scored:
         return []
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    top_items = [item for _, item in scored[:top_k]]
+    top_items = [it for _, it in scored[:top_k]]
 
-    # Log for debugging
     try:
-        dbg = ", ".join(
-            f'"{i.get("user_query")}" (sim={s:.2f})'
-            for s, i in scored[:min(len(scored), top_k)]
+        preview = ", ".join(
+            f'"{item.get("user_query")}" (sim={score:.2f})'
+            for score, item in scored[:top_k]
         )
-        log("history", f"Similar examples for '{user_query}': {dbg}")
+        log("history", f"Similar examples for '{user_query}': {preview}")
     except Exception:
         pass
 
     return top_items
+
+
+# -------------------------------------------------------------------
+# SEMANTIC FAST-PATH FOR DIRECT CACHE ANSWERS
+# -------------------------------------------------------------------
+
+def find_best_cached_answer(
+    user_query: str,
+    min_similarity: float,
+    memory_root: str = "memory",  # kept for signature compatibility, ignored
+) -> Optional[str]:
+    """
+    Returns the FULL `FINAL_ANSWER: ...` string if the user query
+    is a paraphrase of any past query, based on string similarity.
+
+    min_similarity is typically driven by profiles.yaml (read in loop.py).
+    """
+    index_path = _get_index_path()
+    index = _load_index(index_path)
+
+    if not index:
+        return None
+
+    best: Optional[str] = None
+    best_sim = 0.0
+
+    for item in index:
+        uq = item.get("user_query")
+        fa = item.get("final_answer")
+
+        if not isinstance(uq, str) or not isinstance(fa, str):
+            continue
+        if not fa.startswith("FINAL_ANSWER:"):
+            continue
+
+        sim = _string_similarity(user_query, uq)
+        if sim > best_sim:
+            best_sim = sim
+            best = fa
+
+    if best and best_sim >= min_similarity:
+        log("history", f"⚡ Semantic HIT (sim={best_sim:.2f}) for: {user_query}")
+        return best
+
+    return None
