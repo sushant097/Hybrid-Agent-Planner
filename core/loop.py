@@ -164,12 +164,12 @@ Now, provide your final answer. If long answer multi-paragraph, summarize in one
         )
 
         if semantic_hit:
-            log("loop", "⚡ Semantic memory hit — returning cached FINAL_ANSWER.")
+            log("loop", "🔁 Cache hit – returning stored FINAL_ANSWER (no new history).")
             # semantic_hit already starts with FINAL_ANSWER:
             self.context.final_answer = semantic_hit.strip()
             # Log into current session memory so this turn is represented
-            self.context.memory.add_final_answer(self.context.final_answer)
-            self._update_historical_index()
+            # self.context.memory.add_final_answer(self.context.final_answer)
+            # self._update_historical_index()
             return {"status": "done", "result": self.context.final_answer}
 
         # ---------------------------------------------------------
