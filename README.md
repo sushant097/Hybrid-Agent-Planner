@@ -638,7 +638,7 @@ User:
    ⚡ Semantic memory hit — returning cached FINAL_ANSWER.
    ```
 
-   And the user immediately gets the same `FINAL_ANSWER` without any extra tool calls or planning.
+   And the user immediately gets the same `FINAL_ANSWER` without any extra tool calls or planning. Cache hit responses will not be logged in the memory again. Also, error and incomplete answers will not be stored in memory to avoid polluting the cache.
 
 ---
 
